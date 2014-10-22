@@ -4,15 +4,30 @@
   "author": "Jon Nordby <jononor@gmail.com>",
   "repo": "noflo/noflo-browser-app",
   "version": "0.1.0",
-  "keywords": [
-  ],
+  "keywords": [],
   "dependencies": {
-    "noflo/noflo": "*"
+    "noflo/noflo": "*",
+    "noflo/noflo-dom": "*",
+    "noflo/noflo-core": "*"
   },
   "remotes": [
     "https://raw.githubusercontent.com"
   ],
   "scripts": [
-    "index.js"
-  ]
+    "index.js",
+    "components/DoSomething.coffee",
+    "graphs/main.json"
+  ],
+  "json": [
+    "graphs/main.json",
+    "component.json"
+  ],
+  "noflo": {
+    "graphs": {
+      "main": "graphs/main.json"
+    },
+    "components": {
+      "DoSomething": "components/DoSomething.coffee"
+    }
+  }
 }

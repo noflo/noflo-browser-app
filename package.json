@@ -35,5 +35,10 @@
     "grunt-noflo-manifest": "~0.1.11",
     "grunt-noflo-browser": "^0.1.1"
   },
-  "keywords": []
+  "keywords": [],
+  "noflo": {
+    "components": {
+      "DoSomething": "components/DoSomething.coffee"
+    }
+  }
 }
