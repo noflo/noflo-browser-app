@@ -3,17 +3,30 @@
   <head>
     <meta charset="utf-8">
     <title>main</title>
+    <script src="http://cdn.rawgit.com/rtc-io/rtc/v3.1.1/dist/rtc.js"></script>
     <script src="noflo-browser-app.js"></script>
   </head>
   <body>
+    <a id='flowhub_debug_url'>Debug in Flowhub</a>
     <button id='button'>Go!</button>
 <p id='message'></p>
     <script>
       var noflo = require('noflo');
+      var runtime = require('noflo-runtime-webrtc');
       noflo.graph.loadJSON(require('noflo-browser-app/graphs/main.json'), function (graph) {
         graph.baseDir = '/noflo-browser-app';
-        noflo.createNetwork(graph, function (network) {
-          console.log('main is running!');
+        var runtimeOptions = {
+            defaultGraph: graph,
+            baseDir: graph.baseDir
+        };
+        var rt = runtime(null, runtimeOptions);
+        window.rt = rt;
+        console.log('WebRTC id is', rt.id);
+        var ide = 'http://app.flowhub.io';
+        var debugUrl = ide+'#runtime/endpoint?'+encodeURIComponent('protocol=webrtc&address='+rt.id);
+        document.getElementById('flowhub_debug_url').href = debugUrl;
+        rt.network.on('addnetwork', function () {
+            console.log('main is running!');
         });
       });
     </script>

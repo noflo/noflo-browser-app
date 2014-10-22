@@ -1638,9 +1638,9 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
   _.result = function(object, property, fallback) {
     var value = object == null ? void 0 : object[property];
     if (value === void 0) {
-      return fallback;
+      value = fallback;
     }
-    return _.isFunction(value) ? object[property]() : value;
+    return _.isFunction(value) ? value.call(object) : value;
   };
 
   // Generate a unique integer id (unique within the entire client session).
@@ -13407,6 +13407,8 @@ NetworkProtocol = (function(_super) {
         return this.updateEdgesFilter(graph, payload, context);
       case 'debug':
         return this.debugNetwork(graph, payload, context);
+      case 'getstatus':
+        return this.getStatus(graph, payload, context);
     }
   };
 
@@ -13573,6 +13575,18 @@ NetworkProtocol = (function(_super) {
     } else {
       return console.log('Warning: Network.setDebug not supported. Update to newer NoFlo');
     }
+  };
+
+  NetworkProtocol.prototype.getStatus = function(graph, payload, context) {
+    var network;
+    network = this.networks[payload.graph];
+    if (!network) {
+      return;
+    }
+    return this.send('status', {
+      graph: payload.graph,
+      running: network.network.isStarted()
+    }, context);
   };
 
   return NetworkProtocol;
