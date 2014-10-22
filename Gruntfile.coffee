@@ -67,7 +67,7 @@ module.exports = ->
         clone: 'gh-pages'
         message: 'Updating'
         repo: 'https://' + process.env.GH_TOKEN + '@github.com/noflo/noflo-browser-app.git'
-        silent: true
+        silent: false
       src: '**/*'
 
   # Grunt plugins used for building
