@@ -1014,24 +1014,28 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
   // Reusable constructor function for prototype setting.
   var Ctor = function(){};
 
+  // Determines whether to execute a function as a constructor
+  // or a normal function with the provided arguments
+  var executeBound = function(sourceFunc, boundFunc, context, callingContext, args) {
+    if (!(callingContext instanceof boundFunc)) return sourceFunc.apply(context, args);
+    Ctor.prototype = sourceFunc.prototype;
+    var self = new Ctor;
+    Ctor.prototype = null;
+    var result = sourceFunc.apply(self, args);
+    if (_.isObject(result)) return result;
+    return self;
+  };
+
   // Create a function bound to a given object (assigning `this`, and arguments,
   // optionally). Delegates to **ECMAScript 5**'s native `Function.bind` if
   // available.
   _.bind = function(func, context) {
-    var args, bound;
     if (nativeBind && func.bind === nativeBind) return nativeBind.apply(func, slice.call(arguments, 1));
-    if (!_.isFunction(func)) throw new TypeError('Bind must be called on a function');
-    args = slice.call(arguments, 2);
-    bound = function() {
-      if (!(this instanceof bound)) return func.apply(context, args.concat(slice.call(arguments)));
-      Ctor.prototype = func.prototype;
-      var self = new Ctor;
-      Ctor.prototype = null;
-      var result = func.apply(self, args.concat(slice.call(arguments)));
-      if (_.isObject(result)) return result;
-      return self;
+    if (!_.isFunction(func)) throw TypeError('Bind must be called on a function');
+    var args = slice.call(arguments, 2);
+    return function bound() {
+      return executeBound(func, bound, context, this, args.concat(slice.call(arguments)));
     };
-    return bound;
   };
 
   // Partially apply a function by creating a version that has had some of its
@@ -1039,14 +1043,14 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
   // as a placeholder, allowing any combination of arguments to be pre-filled.
   _.partial = function(func) {
     var boundArgs = slice.call(arguments, 1);
-    return function() {
+    return function bound() {
       var position = 0;
       var args = boundArgs.slice();
       for (var i = 0, length = args.length; i < length; i++) {
         if (args[i] === _) args[i] = arguments[position++];
       }
       while (position < arguments.length) args.push(arguments[position++]);
-      return func.apply(this, args);
+      return executeBound(func, bound, this, this, args);
     };
   };
 
@@ -12784,6 +12788,1553 @@ exports.getComponent = function() {
 };
 
 });
+require.register("noflo-noflo-runtime-base/src/Base.js", function(exports, require, module){
+var BaseTransport, protocols;
+
+protocols = {
+  Runtime: require('./protocol/Runtime'),
+  Graph: require('./protocol/Graph'),
+  Network: require('./protocol/Network'),
+  Component: require('./protocol/Component')
+};
+
+BaseTransport = (function() {
+  function BaseTransport(options) {
+    var path;
+    this.options = options;
+    if (!this.options) {
+      this.options = {};
+    }
+    this.version = '0.4';
+    this.component = new protocols.Component(this);
+    this.graph = new protocols.Graph(this);
+    this.network = new protocols.Network(this);
+    this.runtime = new protocols.Runtime(this);
+    this.context = null;
+    if (this.options.defaultGraph != null) {
+      this.options.defaultGraph.baseDir = this.options.baseDir;
+      path = 'default/main';
+      this.context = 'none';
+      this.graph.registerGraph(path, this.options.defaultGraph);
+      this.network.initNetwork(this.options.defaultGraph, {
+        graph: path
+      }, this.context);
+    }
+    if ((this.options.captureOutput != null) && this.options.captureOutput) {
+      this.startCapture();
+    }
+  }
+
+  BaseTransport.prototype.send = function(protocol, topic, payload, context) {};
+
+  BaseTransport.prototype.sendAll = function(protocol, topic, payload, context) {};
+
+  BaseTransport.prototype.receive = function(protocol, topic, payload, context) {
+    this.context = context;
+    switch (protocol) {
+      case 'runtime':
+        return this.runtime.receive(topic, payload, context);
+      case 'graph':
+        return this.graph.receive(topic, payload, context);
+      case 'network':
+        return this.network.receive(topic, payload, context);
+      case 'component':
+        return this.component.receive(topic, payload, context);
+    }
+  };
+
+  return BaseTransport;
+
+})();
+
+module.exports = BaseTransport;
+
+});
+require.register("noflo-noflo-runtime-base/src/protocol/Graph.js", function(exports, require, module){
+var GraphProtocol, noflo;
+
+noflo = require('noflo');
+
+GraphProtocol = (function() {
+  function GraphProtocol(transport) {
+    this.transport = transport;
+    this.graphs = {};
+  }
+
+  GraphProtocol.prototype.send = function(topic, payload, context) {
+    return this.transport.send('graph', topic, payload, context);
+  };
+
+  GraphProtocol.prototype.receive = function(topic, payload, context) {
+    var graph;
+    if (topic !== 'clear') {
+      graph = this.resolveGraph(payload, context);
+      if (!graph) {
+        return;
+      }
+    }
+    switch (topic) {
+      case 'clear':
+        return this.initGraph(payload, context);
+      case 'addnode':
+        return this.addNode(graph, payload, context);
+      case 'removenode':
+        return this.removeNode(graph, payload, context);
+      case 'renamenode':
+        return this.renameNode(graph, payload, context);
+      case 'changenode':
+        return this.changeNode(graph, payload, context);
+      case 'addedge':
+        return this.addEdge(graph, payload, context);
+      case 'removeedge':
+        return this.removeEdge(graph, payload, context);
+      case 'changeedge':
+        return this.changeEdge(graph, payload, context);
+      case 'addinitial':
+        return this.addInitial(graph, payload, context);
+      case 'removeinitial':
+        return this.removeInitial(graph, payload, context);
+      case 'addinport':
+        return this.addInport(graph, payload, context);
+      case 'removeinport':
+        return this.removeInport(graph, payload, context);
+      case 'renameinport':
+        return this.renameInport(graph, payload, context);
+      case 'addoutport':
+        return this.addOutport(graph, payload, context);
+      case 'removeoutport':
+        return this.removeOutport(graph, payload, context);
+      case 'renameoutport':
+        return this.renameOutport(graph, payload, context);
+      case 'addgroup':
+        return this.addGroup(graph, payload, context);
+      case 'removegroup':
+        return this.removeGroup(graph, payload, context);
+      case 'renamegroup':
+        return this.renameGroup(graph, payload, context);
+      case 'changegroup':
+        return this.changeGroup(graph, payload, context);
+    }
+  };
+
+  GraphProtocol.prototype.resolveGraph = function(payload, context) {
+    if (!payload.graph) {
+      this.send('error', new Error('No graph specified'), context);
+      return;
+    }
+    if (!this.graphs[payload.graph]) {
+      this.send('error', new Error('Requested graph not found'), context);
+      return;
+    }
+    return this.graphs[payload.graph];
+  };
+
+  GraphProtocol.prototype.getLoader = function(baseDir) {
+    if (!this.loaders[baseDir]) {
+      this.loaders[baseDir] = new noflo.ComponentLoader(baseDir);
+    }
+    return this.loaders[baseDir];
+  };
+
+  GraphProtocol.prototype.sendGraph = function(id, graph, context) {
+    var payload;
+    payload = {
+      graph: id,
+      description: graph.toJSON()
+    };
+    return this.send('graph', payload, context);
+  };
+
+  GraphProtocol.prototype.initGraph = function(payload, context) {
+    var fullName, graph;
+    if (!payload.id) {
+      this.send('error', new Error('No graph ID provided'), context);
+      return;
+    }
+    if (!payload.name) {
+      payload.name = 'NoFlo runtime';
+    }
+    graph = new noflo.Graph(payload.name);
+    fullName = payload.id;
+    if (payload.library) {
+      payload.library = payload.library.replace('noflo-', '');
+      graph.properties.library = payload.library;
+      fullName = "" + payload.library + "/" + fullName;
+    }
+    if (payload.icon) {
+      graph.properties.icon = payload.icon;
+    }
+    if (payload.description) {
+      graph.properties.description = payload.description;
+    }
+    graph.baseDir = this.transport.options.baseDir;
+    this.subscribeGraph(payload.id, graph, context);
+    if (payload.main) {
+      this.transport.runtime.setMainGraph(fullName, graph, context);
+    } else {
+      this.transport.component.registerGraph(fullName, graph, context);
+    }
+    return this.graphs[payload.id] = graph;
+  };
+
+  GraphProtocol.prototype.registerGraph = function(id, graph) {
+    if (id === 'default/main') {
+      this.transport.runtime.setMainGraph(id, graph);
+    }
+    this.subscribeGraph(id, graph, '');
+    return this.graphs[id] = graph;
+  };
+
+  GraphProtocol.prototype.subscribeGraph = function(id, graph, context) {
+    graph.on('addNode', (function(_this) {
+      return function(node) {
+        node.graph = id;
+        return _this.send('addnode', node, context);
+      };
+    })(this));
+    graph.on('removeNode', (function(_this) {
+      return function(node) {
+        node.graph = id;
+        return _this.send('removenode', node, context);
+      };
+    })(this));
+    graph.on('renameNode', (function(_this) {
+      return function(oldId, newId) {
+        return _this.send('renamenode', {
+          from: oldId,
+          to: newId,
+          graph: id
+        }, context);
+      };
+    })(this));
+    graph.on('changeNode', (function(_this) {
+      return function(node, before) {
+        return _this.send('changenode', {
+          id: node.id,
+          metadata: node.metadata,
+          graph: id
+        }, context);
+      };
+    })(this));
+    graph.on('addEdge', (function(_this) {
+      return function(edge) {
+        var edgeData;
+        if (typeof edge.from.index !== 'number') {
+          delete edge.from.index;
+        }
+        if (typeof edge.to.index !== 'number') {
+          delete edge.to.index;
+        }
+        edgeData = {
+          src: edge.from,
+          tgt: edge.to,
+          metadata: edge.metadata,
+          graph: id
+        };
+        return _this.send('addedge', edgeData, context);
+      };
+    })(this));
+    graph.on('removeEdge', (function(_this) {
+      return function(edge) {
+        var edgeData;
+        edgeData = {
+          src: edge.from,
+          tgt: edge.to,
+          metadata: edge.metadata,
+          graph: id
+        };
+        return _this.send('removeedge', edgeData, context);
+      };
+    })(this));
+    graph.on('changeEdge', (function(_this) {
+      return function(edge) {
+        var edgeData;
+        edgeData = {
+          src: edge.from,
+          tgt: edge.to,
+          metadata: edge.metadata,
+          graph: id
+        };
+        return _this.send('changeedge', edgeData, context);
+      };
+    })(this));
+    graph.on('addInitial', (function(_this) {
+      return function(iip) {
+        var iipData;
+        iipData = {
+          src: iip.from,
+          tgt: iip.to,
+          metadata: iip.metadata,
+          graph: id
+        };
+        return _this.send('addinitial', iipData, context);
+      };
+    })(this));
+    graph.on('removeInitial', (function(_this) {
+      return function(iip) {
+        var iipData;
+        iipData = {
+          src: iip.from,
+          tgt: iip.to,
+          metadata: iip.metadata,
+          graph: id
+        };
+        return _this.send('removeinitial', iipData, context);
+      };
+    })(this));
+    graph.on('addGroup', (function(_this) {
+      return function(group) {
+        var groupData;
+        groupData = {
+          name: group.name,
+          nodes: group.nodes,
+          metadata: group.metadata,
+          graph: id
+        };
+        return _this.send('addgroup', groupData, context);
+      };
+    })(this));
+    graph.on('removeGroup', (function(_this) {
+      return function(group) {
+        var groupData;
+        groupData = {
+          name: group.name,
+          graph: id
+        };
+        return _this.send('removegroup', groupData, context);
+      };
+    })(this));
+    graph.on('renameGroup', (function(_this) {
+      return function(oldName, newName) {
+        var groupData;
+        groupData = {
+          from: oldName,
+          to: newName,
+          graph: id
+        };
+        return _this.send('renamegroup', groupData, context);
+      };
+    })(this));
+    return graph.on('changeGroup', (function(_this) {
+      return function(group) {
+        var groupData;
+        groupData = {
+          name: group.name,
+          metadata: group.metadata,
+          graph: id
+        };
+        return _this.send('changegroup', groupData, context);
+      };
+    })(this));
+  };
+
+  GraphProtocol.prototype.addNode = function(graph, node, context) {
+    if (!(node.id || node.component)) {
+      this.send('error', new Error('No ID or component supplied'), context);
+      return;
+    }
+    return graph.addNode(node.id, node.component, node.metadata);
+  };
+
+  GraphProtocol.prototype.removeNode = function(graph, payload) {
+    if (!payload.id) {
+      this.send('error', new Error('No ID supplied'), context);
+      return;
+    }
+    return graph.removeNode(payload.id);
+  };
+
+  GraphProtocol.prototype.renameNode = function(graph, payload, context) {
+    if (!(payload.from || payload.to)) {
+      this.send('error', new Error('No from or to supplied'), context);
+      return;
+    }
+    return graph.renameNode(payload.from, payload.to);
+  };
+
+  GraphProtocol.prototype.changeNode = function(graph, payload, context) {
+    if (!(payload.id || payload.metadata)) {
+      this.send('error', new Error('No id or metadata supplied'), context);
+      return;
+    }
+    return graph.setNodeMetadata(payload.id, payload.metadata);
+  };
+
+  GraphProtocol.prototype.addEdge = function(graph, edge, context) {
+    if (!(edge.src || edge.tgt)) {
+      this.send('error', new Error('No src or tgt supplied'), context);
+      return;
+    }
+    if (typeof edge.src.index === 'number' || typeof edge.tgt.index === 'number') {
+      if (graph.addEdgeIndex) {
+        graph.addEdgeIndex(edge.src.node, edge.src.port, edge.src.index, edge.tgt.node, edge.tgt.port, edge.tgt.index, edge.metadata);
+        return;
+      }
+    }
+    return graph.addEdge(edge.src.node, edge.src.port, edge.tgt.node, edge.tgt.port, edge.metadata);
+  };
+
+  GraphProtocol.prototype.removeEdge = function(graph, edge, context) {
+    if (!(edge.src || edge.tgt)) {
+      this.send('error', new Error('No src or tgt supplied'), context);
+      return;
+    }
+    return graph.removeEdge(edge.src.node, edge.src.port, edge.tgt.node, edge.tgt.port);
+  };
+
+  GraphProtocol.prototype.changeEdge = function(graph, edge, context) {
+    if (!(edge.src || edge.tgt)) {
+      this.send('error', new Error('No src or tgt supplied'), context);
+      return;
+    }
+    return graph.setEdgeMetadata(edge.src.node, edge.src.port, edge.tgt.node, edge.tgt.port, edge.metadata);
+  };
+
+  GraphProtocol.prototype.addInitial = function(graph, payload, context) {
+    if (!(payload.src || payload.tgt)) {
+      this.send('error', new Error('No src or tgt supplied'), context);
+      return;
+    }
+    if (graph.addInitialIndex && typeof payload.tgt.index === 'number') {
+      graph.addInitialIndex(payload.src.data, payload.tgt.node, payload.tgt.port, payload.tgt.index, payload.metadata);
+      return;
+    }
+    return graph.addInitial(payload.src.data, payload.tgt.node, payload.tgt.port, payload.metadata);
+  };
+
+  GraphProtocol.prototype.removeInitial = function(graph, payload, context) {
+    if (!payload.tgt) {
+      this.send('error', new Error('No tgt supplied'), context);
+      return;
+    }
+    return graph.removeInitial(payload.tgt.node, payload.tgt.port);
+  };
+
+  GraphProtocol.prototype.addInport = function(graph, payload, context) {
+    if (!(payload["public"] || payload.node || payload.port)) {
+      this.send('error', new Error('Missing exported inport information'), context);
+      return;
+    }
+    return graph.addInport(payload["public"], payload.node, payload.port, payload.metadata);
+  };
+
+  GraphProtocol.prototype.removeInport = function(graph, payload, context) {
+    if (!payload["public"]) {
+      this.send('error', new Error('Missing exported inport name'), context);
+      return;
+    }
+    return graph.removeInport(payload["public"]);
+  };
+
+  GraphProtocol.prototype.renameInport = function(graph, payload, context) {
+    if (!(payload.from || payload.to)) {
+      this.send('error', new Error('No from or to supplied'), context);
+      return;
+    }
+    return graph.renameInport(payload.from, payload.to);
+  };
+
+  GraphProtocol.prototype.addOutport = function(graph, payload, context) {
+    if (!(payload["public"] || payload.node || payload.port)) {
+      this.send('error', new Error('Missing exported outport information'), context);
+      return;
+    }
+    return graph.addOutport(payload["public"], payload.node, payload.port, payload.metadata);
+  };
+
+  GraphProtocol.prototype.removeOutport = function(graph, payload, context) {
+    if (!payload["public"]) {
+      this.send('error', new Error('Missing exported outport name'), context);
+      return;
+    }
+    return graph.removeOutport(payload["public"]);
+  };
+
+  GraphProtocol.prototype.renameOutport = function(graph, payload, context) {
+    if (!(payload.from || payload.to)) {
+      this.send('error', new Error('No from or to supplied'), context);
+      return;
+    }
+    return graph.renameOutport(payload.from, payload.to);
+  };
+
+  GraphProtocol.prototype.addGroup = function(graph, payload, context) {
+    if (!(payload.name || payload.nodes || payload.metadata)) {
+      this.send('error', new Error('No name or nodes or metadata supplied'), context);
+      return;
+    }
+    return graph.addGroup(payload.name, payload.nodes, payload.metadata);
+  };
+
+  GraphProtocol.prototype.removeGroup = function(graph, payload, context) {
+    if (!payload.name) {
+      this.send('error', new Error('No name supplied'), context);
+      return;
+    }
+    return graph.removeGroup(payload.name);
+  };
+
+  GraphProtocol.prototype.renameGroup = function(graph, payload, context) {
+    if (!(payload.from || payload.to)) {
+      this.send('error', new Error('No from or to supplied'), context);
+      return;
+    }
+    return graph.renameGroup(payload.from, payload.to);
+  };
+
+  GraphProtocol.prototype.changeGroup = function(graph, payload, context) {
+    if (!(payload.name || payload.metadata)) {
+      this.send('error', new Error('No name or metadata supplied'), context);
+      return;
+    }
+    return graph.setEdgeMetadata(payload.name, payload.metadata);
+  };
+
+  return GraphProtocol;
+
+})();
+
+module.exports = GraphProtocol;
+
+});
+require.register("noflo-noflo-runtime-base/src/protocol/Network.js", function(exports, require, module){
+var EventEmitter, NetworkProtocol, getConnectionSignature, getEdgeSignature, getPortSignature, getSocketSignature, noflo, prepareSocketEvent,
+  __hasProp = {}.hasOwnProperty,
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+noflo = require('noflo');
+
+EventEmitter = require('events').EventEmitter;
+
+prepareSocketEvent = function(event, req) {
+  var payload;
+  payload = {
+    id: event.id,
+    graph: req.graph
+  };
+  if (event.socket.from) {
+    payload.src = {
+      node: event.socket.from.process.id,
+      port: event.socket.from.port
+    };
+  }
+  if (event.socket.to) {
+    payload.tgt = {
+      node: event.socket.to.process.id,
+      port: event.socket.to.port
+    };
+  }
+  if (event.subgraph) {
+    payload.subgraph = event.subgraph;
+  }
+  if (event.group) {
+    payload.group = event.group;
+  }
+  if (event.data) {
+    if (!noflo.isBrowser()) {
+      if (Buffer.isBuffer(event.data)) {
+        event.data = event.data.slice(0, 20);
+      }
+    }
+    if (event.data.toJSON) {
+      payload.data = event.data.toJSON();
+    }
+    if (event.data.toString) {
+      payload.data = event.data.toString();
+      if (payload.data === '[object Object]') {
+        try {
+          payload.data = JSON.parse(JSON.stringify(event.data));
+        } catch (_error) {}
+      }
+    } else {
+      payload.data = event.data;
+    }
+  }
+  if (event.subgraph) {
+    payload.subgraph = event.subgraph;
+  }
+  return payload;
+};
+
+getPortSignature = function(item) {
+  if (!item) {
+    return '';
+  }
+  return item.process + '(' + item.port + ')';
+};
+
+getEdgeSignature = function(edge) {
+  return getPortSignature(edge.src) + ' -> ' + getPortSignature(edge.tgt);
+};
+
+getConnectionSignature = function(connection) {
+  if (!connection) {
+    return '';
+  }
+  return connection.process.id + '(' + connection.port + ')';
+};
+
+getSocketSignature = function(socket) {
+  return getConnectionSignature(socket.from) + ' -> ' + getConnectionSignature(socket.to);
+};
+
+NetworkProtocol = (function(_super) {
+  __extends(NetworkProtocol, _super);
+
+  function NetworkProtocol(transport) {
+    this.transport = transport;
+    this.networks = {};
+  }
+
+  NetworkProtocol.prototype.send = function(topic, payload, context) {
+    return this.transport.send('network', topic, payload, context);
+  };
+
+  NetworkProtocol.prototype.receive = function(topic, payload, context) {
+    var graph;
+    if (topic !== 'list') {
+      graph = this.resolveGraph(payload, context);
+      if (!graph) {
+        return;
+      }
+    }
+    switch (topic) {
+      case 'start':
+        return this.initNetwork(graph, payload, context);
+      case 'stop':
+        return this.stopNetwork(graph, payload, context);
+      case 'edges':
+        return this.updateEdgesFilter(graph, payload, context);
+      case 'debug':
+        return this.debugNetwork(graph, payload, context);
+    }
+  };
+
+  NetworkProtocol.prototype.resolveGraph = function(payload, context) {
+    if (!payload.graph) {
+      this.send('error', new Error('No graph specified'), context);
+      return;
+    }
+    if (!this.transport.graph.graphs[payload.graph]) {
+      this.send('error', new Error('Requested graph not found'), context);
+      return;
+    }
+    return this.transport.graph.graphs[payload.graph];
+  };
+
+  NetworkProtocol.prototype.updateEdgesFilter = function(graph, payload, context) {
+    var edge, network, signature, _i, _len, _ref, _results;
+    network = this.networks[payload.graph];
+    if (network) {
+      network.filters = {};
+    } else {
+      network = {
+        network: null,
+        filters: {}
+      };
+      this.networks[payload.graph] = network;
+    }
+    _ref = payload.edges;
+    _results = [];
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      edge = _ref[_i];
+      signature = getEdgeSignature(edge);
+      _results.push(network.filters[signature] = true);
+    }
+    return _results;
+  };
+
+  NetworkProtocol.prototype.eventFiltered = function(graph, event) {
+    var sign;
+    if (!this.transport.options.filterData) {
+      return true;
+    }
+    sign = getSocketSignature(event.socket);
+    return this.networks[graph].filters[sign];
+  };
+
+  NetworkProtocol.prototype.initNetwork = function(graph, payload, context) {
+    var network;
+    if (this.networks[payload.graph]) {
+      network = this.networks[payload.graph].network;
+      network.stop();
+      delete this.networks[payload.graph];
+      this.emit('removenetwork', network, this.networks);
+    }
+    graph.componentLoader = this.transport.component.getLoader(graph.baseDir);
+    return noflo.createNetwork(graph, (function(_this) {
+      return function(network) {
+        if (_this.networks[payload.graph]) {
+          _this.networks[payload.graph].network = network;
+        } else {
+          _this.networks[payload.graph] = {
+            network: network,
+            filters: {}
+          };
+        }
+        _this.emit('addnetwork', network, _this.networks);
+        _this.subscribeNetwork(network, payload, context);
+        return network.connect(function() {
+          network.start();
+          return graph.on('addInitial', function() {
+            return network.sendInitials();
+          });
+        });
+      };
+    })(this), true);
+  };
+
+  NetworkProtocol.prototype.subscribeNetwork = function(network, payload, context) {
+    network.on('start', (function(_this) {
+      return function(event) {
+        return _this.send('started', {
+          time: event.start,
+          graph: payload.graph
+        }, context);
+      };
+    })(this));
+    network.on('icon', (function(_this) {
+      return function(event) {
+        event.graph = payload.graph;
+        return _this.send('icon', event, context);
+      };
+    })(this));
+    network.on('connect', (function(_this) {
+      return function(event) {
+        return _this.send('connect', prepareSocketEvent(event, payload), context);
+      };
+    })(this));
+    network.on('begingroup', (function(_this) {
+      return function(event) {
+        return _this.send('begingroup', prepareSocketEvent(event, payload), context);
+      };
+    })(this));
+    network.on('data', (function(_this) {
+      return function(event) {
+        if (!_this.eventFiltered(payload.graph, event)) {
+          return;
+        }
+        return _this.send('data', prepareSocketEvent(event, payload), context);
+      };
+    })(this));
+    network.on('endgroup', (function(_this) {
+      return function(event) {
+        return _this.send('endgroup', prepareSocketEvent(event, payload), context);
+      };
+    })(this));
+    network.on('disconnect', (function(_this) {
+      return function(event) {
+        return _this.send('disconnect', prepareSocketEvent(event, payload), context);
+      };
+    })(this));
+    network.on('end', (function(_this) {
+      return function(event) {
+        return _this.send('stopped', {
+          time: new Date,
+          uptime: event.uptime,
+          graph: payload.graph
+        }, context);
+      };
+    })(this));
+    return network.on('process-error', (function(_this) {
+      return function(event) {
+        var bt, error, i, _i, _ref;
+        error = event.error.message;
+        if (event.error.stack) {
+          bt = event.error.stack.split('\n');
+          for (i = _i = 0, _ref = Math.min(bt.length, 3); 0 <= _ref ? _i <= _ref : _i >= _ref; i = 0 <= _ref ? ++_i : --_i) {
+            error += "\n" + bt[i];
+          }
+        }
+        return _this.send('processerror', {
+          id: event.id,
+          error: error,
+          graph: payload.graph
+        }, context);
+      };
+    })(this));
+  };
+
+  NetworkProtocol.prototype.stopNetwork = function(graph, payload, context) {
+    if (!this.networks[payload.graph]) {
+      return;
+    }
+    return this.networks[payload.graph].network.stop();
+  };
+
+  NetworkProtocol.prototype.debugNetwork = function(graph, payload, context) {
+    var net;
+    if (!this.networks[payload.graph]) {
+      return;
+    }
+    net = this.networks[payload.graph].network;
+    if (net.setDebug != null) {
+      return net.setDebug(payload.enable);
+    } else {
+      return console.log('Warning: Network.setDebug not supported. Update to newer NoFlo');
+    }
+  };
+
+  return NetworkProtocol;
+
+})(EventEmitter);
+
+module.exports = NetworkProtocol;
+
+});
+require.register("noflo-noflo-runtime-base/src/protocol/Component.js", function(exports, require, module){
+var ComponentProtocol, noflo;
+
+noflo = require('noflo');
+
+ComponentProtocol = (function() {
+  ComponentProtocol.prototype.loaders = {};
+
+  function ComponentProtocol(transport) {
+    this.transport = transport;
+  }
+
+  ComponentProtocol.prototype.send = function(topic, payload, context) {
+    return this.transport.send('component', topic, payload, context);
+  };
+
+  ComponentProtocol.prototype.receive = function(topic, payload, context) {
+    switch (topic) {
+      case 'list':
+        return this.listComponents(payload, context);
+      case 'getsource':
+        return this.getSource(payload, context);
+      case 'source':
+        return this.setSource(payload, context);
+    }
+  };
+
+  ComponentProtocol.prototype.getLoader = function(baseDir) {
+    if (!this.loaders[baseDir]) {
+      this.loaders[baseDir] = new noflo.ComponentLoader(baseDir);
+    }
+    return this.loaders[baseDir];
+  };
+
+  ComponentProtocol.prototype.listComponents = function(payload, context) {
+    var baseDir, loader;
+    baseDir = this.transport.options.baseDir;
+    loader = this.getLoader(baseDir);
+    return loader.listComponents((function(_this) {
+      return function(components) {
+        return Object.keys(components).forEach(function(component) {
+          return _this.processComponent(loader, component, context);
+        });
+      };
+    })(this));
+  };
+
+  ComponentProtocol.prototype.getSource = function(payload, context) {
+    var baseDir, loader;
+    baseDir = this.transport.options.baseDir;
+    loader = this.getLoader(baseDir);
+    return loader.getSource(payload.name, (function(_this) {
+      return function(err, component) {
+        var graph, nameParts;
+        if (err) {
+          graph = _this.transport.graph.graphs[payload.name];
+          if (graph == null) {
+            _this.send('error', err, context);
+            return;
+          }
+          nameParts = payload.name.split('/');
+          return _this.send('source', {
+            name: nameParts[1],
+            library: nameParts[0],
+            code: JSON.stringify(graph.toJSON()),
+            language: 'json'
+          }, context);
+        } else {
+          return _this.send('source', component, context);
+        }
+      };
+    })(this));
+  };
+
+  ComponentProtocol.prototype.setSource = function(payload, context) {
+    var baseDir, loader;
+    baseDir = this.transport.options.baseDir;
+    loader = this.getLoader(baseDir);
+    return loader.setSource(payload.library, payload.name, payload.code, payload.language, (function(_this) {
+      return function(err) {
+        if (err) {
+          _this.send('error', err, context);
+          return;
+        }
+        return _this.processComponent(loader, loader.normalizeName(payload.library, payload.name), context);
+      };
+    })(this));
+  };
+
+  ComponentProtocol.prototype.processComponent = function(loader, component, context) {
+    return loader.load(component, (function(_this) {
+      return function(err, instance) {
+        if (!instance) {
+          if (err instanceof Error) {
+            _this.send('error', err, context);
+            return;
+          }
+          instance = err;
+        }
+        if (!instance.isReady()) {
+          instance.once('ready', function() {
+            return _this.sendComponent(component, instance, context);
+          });
+          return;
+        }
+        return _this.sendComponent(component, instance, context);
+      };
+    })(this), true);
+  };
+
+  ComponentProtocol.prototype.sendComponent = function(component, instance, context) {
+    var icon, inPorts, outPorts, port, portName, _ref, _ref1;
+    inPorts = [];
+    outPorts = [];
+    _ref = instance.inPorts;
+    for (portName in _ref) {
+      port = _ref[portName];
+      if (!port || typeof port === 'function' || !port.canAttach) {
+        continue;
+      }
+      inPorts.push({
+        id: portName,
+        type: port.getDataType ? port.getDataType() : void 0,
+        required: port.isRequired ? port.isRequired() : void 0,
+        addressable: port.isAddressable ? port.isAddressable() : void 0,
+        description: port.getDescription ? port.getDescription() : void 0,
+        values: port.options && port.options.values ? port.options.values : void 0,
+        "default": port.options && port.options["default"] ? port.options["default"] : void 0
+      });
+    }
+    _ref1 = instance.outPorts;
+    for (portName in _ref1) {
+      port = _ref1[portName];
+      if (!port || typeof port === 'function' || !port.canAttach) {
+        continue;
+      }
+      outPorts.push({
+        id: portName,
+        type: port.getDataType ? port.getDataType() : void 0,
+        required: port.isRequired ? port.isRequired() : void 0,
+        addressable: port.isAddressable ? port.isAddressable() : void 0,
+        description: port.getDescription ? port.getDescription() : void 0
+      });
+    }
+    icon = instance.getIcon ? instance.getIcon() : 'blank';
+    return this.send('component', {
+      name: component,
+      description: instance.description,
+      subgraph: instance.isSubgraph(),
+      icon: icon,
+      inPorts: inPorts,
+      outPorts: outPorts
+    }, context);
+  };
+
+  ComponentProtocol.prototype.registerGraph = function(id, graph, context) {
+    var loader, send;
+    send = (function(_this) {
+      return function() {
+        return _this.processComponent(loader, id, context);
+      };
+    })(this);
+    loader = this.getLoader(graph.baseDir);
+    loader.listComponents((function(_this) {
+      return function(components) {
+        loader.registerComponent('', id, graph);
+        return send();
+      };
+    })(this));
+    graph.on('addNode', send);
+    graph.on('removeNode', send);
+    graph.on('renameNode', send);
+    graph.on('addEdge', send);
+    graph.on('removeEdge', send);
+    graph.on('addInitial', send);
+    graph.on('removeInitial', send);
+    graph.on('addInport', send);
+    graph.on('removeInport', send);
+    graph.on('renameInport', send);
+    graph.on('addOutport', send);
+    graph.on('removeOutport', send);
+    return graph.on('renameOutport', send);
+  };
+
+  return ComponentProtocol;
+
+})();
+
+module.exports = ComponentProtocol;
+
+});
+require.register("noflo-noflo-runtime-base/src/protocol/Runtime.js", function(exports, require, module){
+var RuntimeProtocol, noflo;
+
+noflo = require('noflo');
+
+RuntimeProtocol = (function() {
+  function RuntimeProtocol(transport) {
+    this.transport = transport;
+    this.mainGraph = null;
+    this.outputSockets = {};
+    this.transport.network.on('addnetwork', (function(_this) {
+      return function(network) {
+        network.on('start', function() {
+          network = _this.getMainNetwork();
+          return _this.updateOutportSubscription(network);
+        });
+        return network.on('data', function(event) {});
+      };
+    })(this));
+    this.transport.network.on('removenetwork', (function(_this) {
+      return function() {
+        var network;
+        network = _this.getMainNetwork();
+        return _this.updateOutportSubscription(network);
+      };
+    })(this));
+  }
+
+  RuntimeProtocol.prototype.send = function(topic, payload, context) {
+    if (context !== null) {
+      return this.transport.send('runtime', topic, payload, context);
+    }
+  };
+
+  RuntimeProtocol.prototype.receive = function(topic, payload, context) {
+    switch (topic) {
+      case 'getruntime':
+        return this.getRuntime(payload, context);
+      case 'packet':
+        return this.receivePacket(payload, context);
+    }
+  };
+
+  RuntimeProtocol.prototype.getRuntime = function(payload, context) {
+    var capabilities, graph, graphInstance, k, type, v, _ref;
+    type = this.transport.options.type;
+    if (!type) {
+      if (noflo.isBrowser()) {
+        type = 'noflo-browser';
+      } else {
+        type = 'noflo-nodejs';
+      }
+    }
+    capabilities = this.transport.options.capabilities;
+    if (!capabilities) {
+      capabilities = ['protocol:graph', 'protocol:component', 'protocol:network', 'protocol:runtime', 'component:setsource', 'component:getsource'];
+    }
+    graph = void 0;
+    _ref = this.transport.network.networks;
+    for (k in _ref) {
+      v = _ref[k];
+      graph = k;
+      break;
+    }
+    this.send('runtime', {
+      type: type,
+      version: this.transport.version,
+      capabilities: capabilities,
+      graph: graph
+    }, context);
+    graphInstance = this.transport.graph.graphs[graph];
+    return this.sendPorts(graph, graphInstance, context);
+  };
+
+  RuntimeProtocol.prototype.sendPorts = function(name, graph, context) {
+    var inports, internal, outports, pub, _ref, _ref1, _ref2, _ref3;
+    inports = [];
+    outports = [];
+    if (graph) {
+      _ref = graph.inports;
+      for (pub in _ref) {
+        internal = _ref[pub];
+        inports.push({
+          id: pub,
+          type: 'any',
+          description: (_ref1 = internal.metadata) != null ? _ref1.description : void 0,
+          addressable: false,
+          required: false
+        });
+      }
+      _ref2 = graph.outports;
+      for (pub in _ref2) {
+        internal = _ref2[pub];
+        outports.push({
+          id: pub,
+          type: 'any',
+          description: (_ref3 = internal.metadata) != null ? _ref3.description : void 0,
+          addressable: false,
+          required: false
+        });
+      }
+    }
+    return this.send('ports', {
+      graph: name,
+      inPorts: inports,
+      outPorts: outports
+    }, context);
+  };
+
+  RuntimeProtocol.prototype.getMainNetwork = function() {
+    var network;
+    network = this.transport.network.networks['echoNoflo'];
+    if (!network) {
+      return null;
+    }
+    network = network.network;
+    return network;
+  };
+
+  RuntimeProtocol.prototype.setMainGraph = function(id, graph, context) {
+    var checkExportedPorts, d, dependencies, _i, _j, _len, _len1, _results;
+    checkExportedPorts = (function(_this) {
+      return function(name, process, port, metadata) {
+        _this.sendPorts(id, graph, context);
+        return _this.updateOutportSubscription(_this.getMainNetwork());
+      };
+    })(this);
+    dependencies = ['addInport', 'addOutport', 'removeInport', 'removeOutport'];
+    if (this.mainGraph) {
+      for (_i = 0, _len = dependencies.length; _i < _len; _i++) {
+        d = dependencies[_i];
+        this.mainGraph.removeListener(d, checkExportedPorts);
+      }
+    }
+    this.mainGraph = graph;
+    _results = [];
+    for (_j = 0, _len1 = dependencies.length; _j < _len1; _j++) {
+      d = dependencies[_j];
+      _results.push(this.mainGraph.on(d, checkExportedPorts));
+    }
+    return _results;
+  };
+
+  RuntimeProtocol.prototype.updateOutportSubscription = function(network) {
+    var component, event, events, graphName, internal, pub, sendFunc, socket, _i, _len, _ref, _ref1, _results;
+    if (!network) {
+      return;
+    }
+    events = ['data', 'begingroup', 'endgroup', 'connect', 'disconnect'];
+    _ref = this.outputSockets;
+    for (pub in _ref) {
+      socket = _ref[pub];
+      for (_i = 0, _len = events.length; _i < _len; _i++) {
+        event = events[_i];
+        socket.removeAllListeners(event);
+      }
+    }
+    this.outputSockets = {};
+    graphName = network.graph.name || network.graph.properties.id;
+    _ref1 = network.graph.outports;
+    _results = [];
+    for (pub in _ref1) {
+      internal = _ref1[pub];
+      socket = noflo.internalSocket.createSocket();
+      this.outputSockets[pub] = socket;
+      component = network.processes[internal.process].component;
+      component.outPorts[internal.port].attach(socket);
+      sendFunc = (function(_this) {
+        return function(event) {
+          return function(payload) {
+            var _base;
+            return typeof (_base = _this.transport).sendAll === "function" ? _base.sendAll('runtime', 'packet', {
+              port: pub,
+              event: event,
+              graph: graphName,
+              payload: payload
+            }) : void 0;
+          };
+        };
+      })(this);
+      _results.push((function() {
+        var _j, _len1, _results1;
+        _results1 = [];
+        for (_j = 0, _len1 = events.length; _j < _len1; _j++) {
+          event = events[_j];
+          _results1.push(socket.on(event, sendFunc(event)));
+        }
+        return _results1;
+      })());
+    }
+    return _results;
+  };
+
+  RuntimeProtocol.prototype.receivePacket = function(payload, context) {
+    var component, graphName, internal, network, port, socket;
+    if (!this.mainGraph) {
+      return this.send('error', new Error('No main graph'), context);
+    }
+    graphName = this.mainGraph.name || this.mainGraph.properties.id;
+    network = this.getMainNetwork();
+    internal = this.mainGraph.inports[payload.port];
+    component = network.processes[internal.process].component;
+    socket = noflo.internalSocket.createSocket();
+    port = component.inPorts[internal.port];
+    port.attach(socket);
+    switch (payload.event) {
+      case 'connect':
+        socket.connect();
+        break;
+      case 'disconnect':
+        socket.disconnect();
+        break;
+      case 'begingroup':
+        socket.beginGroup(payload.payload);
+        break;
+      case 'endgroup':
+        socket.endGroup(payload.payload);
+        break;
+      case 'data':
+        socket.send(payload.payload);
+    }
+    return port.detach(socket);
+  };
+
+  return RuntimeProtocol;
+
+})();
+
+module.exports = RuntimeProtocol;
+
+});
+require.register("broofa-node-uuid/uuid.js", function(exports, require, module){
+//     uuid.js
+//
+//     Copyright (c) 2010-2012 Robert Kieffer
+//     MIT License - http://opensource.org/licenses/mit-license.php
+
+(function() {
+  var _global = this;
+
+  // Unique ID creation requires a high quality random # generator.  We feature
+  // detect to determine the best RNG source, normalizing to a function that
+  // returns 128-bits of randomness, since that's what's usually required
+  var _rng;
+
+  // Node.js crypto-based RNG - http://nodejs.org/docs/v0.6.2/api/crypto.html
+  //
+  // Moderately fast, high quality
+  if (typeof(_global.require) == 'function') {
+    try {
+      var _rb = _global.require('crypto').randomBytes;
+      _rng = _rb && function() {return _rb(16);};
+    } catch(e) {}
+  }
+
+  if (!_rng && _global.crypto && crypto.getRandomValues) {
+    // WHATWG crypto-based RNG - http://wiki.whatwg.org/wiki/Crypto
+    //
+    // Moderately fast, high quality
+    var _rnds8 = new Uint8Array(16);
+    _rng = function whatwgRNG() {
+      crypto.getRandomValues(_rnds8);
+      return _rnds8;
+    };
+  }
+
+  if (!_rng) {
+    // Math.random()-based (RNG)
+    //
+    // If all else fails, use Math.random().  It's fast, but is of unspecified
+    // quality.
+    var  _rnds = new Array(16);
+    _rng = function() {
+      for (var i = 0, r; i < 16; i++) {
+        if ((i & 0x03) === 0) r = Math.random() * 0x100000000;
+        _rnds[i] = r >>> ((i & 0x03) << 3) & 0xff;
+      }
+
+      return _rnds;
+    };
+  }
+
+  // Buffer class to use
+  var BufferClass = typeof(_global.Buffer) == 'function' ? _global.Buffer : Array;
+
+  // Maps for number <-> hex string conversion
+  var _byteToHex = [];
+  var _hexToByte = {};
+  for (var i = 0; i < 256; i++) {
+    _byteToHex[i] = (i + 0x100).toString(16).substr(1);
+    _hexToByte[_byteToHex[i]] = i;
+  }
+
+  // **`parse()` - Parse a UUID into it's component bytes**
+  function parse(s, buf, offset) {
+    var i = (buf && offset) || 0, ii = 0;
+
+    buf = buf || [];
+    s.toLowerCase().replace(/[0-9a-f]{2}/g, function(oct) {
+      if (ii < 16) { // Don't overflow!
+        buf[i + ii++] = _hexToByte[oct];
+      }
+    });
+
+    // Zero out remaining bytes if string was short
+    while (ii < 16) {
+      buf[i + ii++] = 0;
+    }
+
+    return buf;
+  }
+
+  // **`unparse()` - Convert UUID byte array (ala parse()) into a string**
+  function unparse(buf, offset) {
+    var i = offset || 0, bth = _byteToHex;
+    return  bth[buf[i++]] + bth[buf[i++]] +
+            bth[buf[i++]] + bth[buf[i++]] + '-' +
+            bth[buf[i++]] + bth[buf[i++]] + '-' +
+            bth[buf[i++]] + bth[buf[i++]] + '-' +
+            bth[buf[i++]] + bth[buf[i++]] + '-' +
+            bth[buf[i++]] + bth[buf[i++]] +
+            bth[buf[i++]] + bth[buf[i++]] +
+            bth[buf[i++]] + bth[buf[i++]];
+  }
+
+  // **`v1()` - Generate time-based UUID**
+  //
+  // Inspired by https://github.com/LiosK/UUID.js
+  // and http://docs.python.org/library/uuid.html
+
+  // random #'s we need to init node and clockseq
+  var _seedBytes = _rng();
+
+  // Per 4.5, create and 48-bit node id, (47 random bits + multicast bit = 1)
+  var _nodeId = [
+    _seedBytes[0] | 0x01,
+    _seedBytes[1], _seedBytes[2], _seedBytes[3], _seedBytes[4], _seedBytes[5]
+  ];
+
+  // Per 4.2.2, randomize (14 bit) clockseq
+  var _clockseq = (_seedBytes[6] << 8 | _seedBytes[7]) & 0x3fff;
+
+  // Previous uuid creation time
+  var _lastMSecs = 0, _lastNSecs = 0;
+
+  // See https://github.com/broofa/node-uuid for API details
+  function v1(options, buf, offset) {
+    var i = buf && offset || 0;
+    var b = buf || [];
+
+    options = options || {};
+
+    var clockseq = options.clockseq != null ? options.clockseq : _clockseq;
+
+    // UUID timestamps are 100 nano-second units since the Gregorian epoch,
+    // (1582-10-15 00:00).  JSNumbers aren't precise enough for this, so
+    // time is handled internally as 'msecs' (integer milliseconds) and 'nsecs'
+    // (100-nanoseconds offset from msecs) since unix epoch, 1970-01-01 00:00.
+    var msecs = options.msecs != null ? options.msecs : new Date().getTime();
+
+    // Per 4.2.1.2, use count of uuid's generated during the current clock
+    // cycle to simulate higher resolution clock
+    var nsecs = options.nsecs != null ? options.nsecs : _lastNSecs + 1;
+
+    // Time since last uuid creation (in msecs)
+    var dt = (msecs - _lastMSecs) + (nsecs - _lastNSecs)/10000;
+
+    // Per 4.2.1.2, Bump clockseq on clock regression
+    if (dt < 0 && options.clockseq == null) {
+      clockseq = clockseq + 1 & 0x3fff;
+    }
+
+    // Reset nsecs if clock regresses (new clockseq) or we've moved onto a new
+    // time interval
+    if ((dt < 0 || msecs > _lastMSecs) && options.nsecs == null) {
+      nsecs = 0;
+    }
+
+    // Per 4.2.1.2 Throw error if too many uuids are requested
+    if (nsecs >= 10000) {
+      throw new Error('uuid.v1(): Can\'t create more than 10M uuids/sec');
+    }
+
+    _lastMSecs = msecs;
+    _lastNSecs = nsecs;
+    _clockseq = clockseq;
+
+    // Per 4.1.4 - Convert from unix epoch to Gregorian epoch
+    msecs += 12219292800000;
+
+    // `time_low`
+    var tl = ((msecs & 0xfffffff) * 10000 + nsecs) % 0x100000000;
+    b[i++] = tl >>> 24 & 0xff;
+    b[i++] = tl >>> 16 & 0xff;
+    b[i++] = tl >>> 8 & 0xff;
+    b[i++] = tl & 0xff;
+
+    // `time_mid`
+    var tmh = (msecs / 0x100000000 * 10000) & 0xfffffff;
+    b[i++] = tmh >>> 8 & 0xff;
+    b[i++] = tmh & 0xff;
+
+    // `time_high_and_version`
+    b[i++] = tmh >>> 24 & 0xf | 0x10; // include version
+    b[i++] = tmh >>> 16 & 0xff;
+
+    // `clock_seq_hi_and_reserved` (Per 4.2.2 - include variant)
+    b[i++] = clockseq >>> 8 | 0x80;
+
+    // `clock_seq_low`
+    b[i++] = clockseq & 0xff;
+
+    // `node`
+    var node = options.node || _nodeId;
+    for (var n = 0; n < 6; n++) {
+      b[i + n] = node[n];
+    }
+
+    return buf ? buf : unparse(b);
+  }
+
+  // **`v4()` - Generate random UUID**
+
+  // See https://github.com/broofa/node-uuid for API details
+  function v4(options, buf, offset) {
+    // Deprecated - 'format' argument, as supported in v1.2
+    var i = buf && offset || 0;
+
+    if (typeof(options) == 'string') {
+      buf = options == 'binary' ? new BufferClass(16) : null;
+      options = null;
+    }
+    options = options || {};
+
+    var rnds = options.random || (options.rng || _rng)();
+
+    // Per 4.4, set bits for version and `clock_seq_hi_and_reserved`
+    rnds[6] = (rnds[6] & 0x0f) | 0x40;
+    rnds[8] = (rnds[8] & 0x3f) | 0x80;
+
+    // Copy bytes to buffer, if provided
+    if (buf) {
+      for (var ii = 0; ii < 16; ii++) {
+        buf[i + ii] = rnds[ii];
+      }
+    }
+
+    return buf || unparse(rnds);
+  }
+
+  // Export public API
+  var uuid = v4;
+  uuid.v1 = v1;
+  uuid.v4 = v4;
+  uuid.parse = parse;
+  uuid.unparse = unparse;
+  uuid.BufferClass = BufferClass;
+
+  if (typeof define === 'function' && define.amd) {
+    // Publish as AMD module
+    define(function() {return uuid;});
+  } else if (typeof(module) != 'undefined' && module.exports) {
+    // Publish as node.js module
+    module.exports = uuid;
+  } else {
+    // Publish as global (in browsers)
+    var _previousRoot = _global.uuid;
+
+    // **`noConflict()` - (browser only) to reset global 'uuid' var**
+    uuid.noConflict = function() {
+      _global.uuid = _previousRoot;
+      return uuid;
+    };
+
+    _global.uuid = uuid;
+  }
+}).call(this);
+
+});
+require.register("noflo-noflo-runtime-webrtc/component.json", function(exports, require, module){
+module.exports = JSON.parse('{"name":"noflo-runtime-webrtc","description":"WebRTC runtime transport support for NoFlo","keywords":["fbp","webrtc","flowhub","noflo"],"repo":"noflo/noflo-runtime-webrtc","version":"0.0.4","dependencies":{"noflo/noflo-runtime-base":"*","bergie/emitter":"*","broofa/node-uuid":"*","noflo/noflo":"*","noflo/noflo-core":"*"},"remotes":["https://raw.githubusercontent.com"],"development":{},"license":"MIT","main":"runtime/network.js","scripts":["runtime/network.js"],"json":["component.json"]}');
+});
+require.register("noflo-noflo-runtime-webrtc/runtime/network.js", function(exports, require, module){
+var Base, WebRTCRuntime, isBrowser, uuid,
+  __hasProp = {}.hasOwnProperty,
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+isBrowser = function() {
+  return !(typeof process !== 'undefined' && process.execPath && process.execPath.indexOf('node') !== -1);
+};
+
+Base = require('noflo-runtime-base');
+
+if (isBrowser()) {
+  uuid = require('node-uuid');
+} else {
+  uuid = require('uuid');
+}
+
+WebRTCRuntime = (function(_super) {
+  __extends(WebRTCRuntime, _super);
+
+  function WebRTCRuntime(options) {
+    WebRTCRuntime.__super__.constructor.call(this, options);
+  }
+
+  WebRTCRuntime.prototype.send = function(protocol, topic, payload, context) {
+    var m, msg;
+    if (!context.channel) {
+      return;
+    }
+    msg = {
+      protocol: protocol,
+      command: topic,
+      payload: payload
+    };
+    m = JSON.stringify(msg);
+    return context.channel.send(m);
+  };
+
+  return WebRTCRuntime;
+
+})(Base);
+
+module.exports = function(id, options) {
+  var channels, peer, rtcOptions, runtime;
+  runtime = new WebRTCRuntime(options);
+  if (!id) {
+    id = uuid.v4();
+  }
+  runtime.id = id;
+  rtcOptions = {
+    room: id,
+    debug: true,
+    channels: {
+      chat: true
+    },
+    signaller: '//switchboard.rtc.io',
+    capture: false,
+    constraints: false,
+    expectedLocalStreams: 0
+  };
+  channels = [];
+  peer = RTC(rtcOptions);
+  peer.on('channel:opened:chat', function(id, dc) {
+    channels.push(dc);
+    return dc.onmessage = function(data) {
+      var context, msg;
+      context = {
+        channel: dc
+      };
+      msg = JSON.parse(data.data);
+      return runtime.receive(msg.protocol, msg.command, msg.payload, context);
+    };
+  });
+  peer.on('channel:closed:chat', function(id, dc) {
+    return dc.onmessage = null;
+  });
+  return runtime;
+};
+
+});
 require.register("noflo-browser-app/index.js", function(exports, require, module){
 /*
  * This file can be used for general library features of noflo-browser-app.
@@ -12800,7 +14351,7 @@ require.register("noflo-browser-app/graphs/main.json", function(exports, require
 module.exports = JSON.parse('{"properties":{"name":"main","environment":{"type":"noflo-browser","content":"<button id=\'button\'>Go!</button>\\n<p id=\'message\'></p>"},"icon":""},"inports":{},"outports":{},"groups":[],"processes":{"dom/GetElement_7amk2":{"component":"dom/GetElement","metadata":{"label":"dom/GetElement","x":252,"y":180,"width":72,"height":72}},"core/Output_cg49":{"component":"core/Output","metadata":{"label":"core/Output","x":432,"y":360,"width":72,"height":72}},"dom/WriteHtml_fpz6j":{"component":"dom/WriteHtml","metadata":{"label":"dom/WriteHtml","x":684,"y":288,"width":72,"height":72}},"dom/GetElement_xvz54":{"component":"dom/GetElement","metadata":{"label":"dom/GetElement","x":252,"y":288,"width":72,"height":72}},"interaction/ListenMouse_1l373":{"component":"interaction/ListenMouse","metadata":{"label":"interaction/ListenMouse","x":432,"y":180,"width":72,"height":72}},"core/Kick_ey1nh":{"component":"core/Kick","metadata":{"label":"core/Kick","x":576,"y":180,"width":72,"height":72}}},"connections":[{"src":{"process":"dom/GetElement_xvz54","port":"element"},"tgt":{"process":"dom/WriteHtml_fpz6j","port":"container"},"metadata":{}},{"src":{"process":"dom/GetElement_7amk2","port":"element"},"tgt":{"process":"interaction/ListenMouse_1l373","port":"element"},"metadata":{"route":0}},{"src":{"process":"dom/GetElement_7amk2","port":"error"},"tgt":{"process":"core/Output_cg49","port":"in"},"metadata":{"route":1}},{"src":{"process":"dom/GetElement_xvz54","port":"error"},"tgt":{"process":"core/Output_cg49","port":"in"},"metadata":{"route":1}},{"src":{"process":"interaction/ListenMouse_1l373","port":"click"},"tgt":{"process":"core/Kick_ey1nh","port":"in"},"metadata":{}},{"src":{"process":"core/Kick_ey1nh","port":"out"},"tgt":{"process":"dom/WriteHtml_fpz6j","port":"html"},"metadata":{}},{"data":"#button","tgt":{"process":"dom/GetElement_7amk2","port":"selector"}},{"data":"#message","tgt":{"process":"dom/GetElement_xvz54","port":"selector"}},{"data":"Hello World!","tgt":{"process":"core/Kick_ey1nh","port":"data"}}]}');
 });
 require.register("noflo-browser-app/component.json", function(exports, require, module){
-module.exports = JSON.parse('{"name":"noflo-browser-app","description":"The best project ever.","author":"Jon Nordby <jononor@gmail.com>","repo":"noflo/noflo-browser-app","version":"0.1.0","keywords":[],"dependencies":{"noflo/noflo":"*","noflo/noflo-dom":"*","noflo/noflo-core":"*","noflo/noflo-interaction":"*"},"remotes":["https://raw.githubusercontent.com"],"scripts":["index.js","components/DoSomething.js","graphs/main.json"],"json":["graphs/main.json","component.json"],"noflo":{"graphs":{"main":"graphs/main.json"},"components":{"DoSomething":"components/DoSomething.js"}}}');
+module.exports = JSON.parse('{"name":"noflo-browser-app","description":"The best project ever.","author":"Jon Nordby <jononor@gmail.com>","repo":"noflo/noflo-browser-app","version":"0.1.0","keywords":[],"dependencies":{"noflo/noflo":"*","noflo/noflo-dom":"*","noflo/noflo-core":"*","noflo/noflo-interaction":"*","noflo/noflo-runtime-webrtc":"*"},"remotes":["https://raw.githubusercontent.com"],"scripts":["index.js","components/DoSomething.js","graphs/main.json"],"json":["graphs/main.json","component.json"],"noflo":{"graphs":{"main":"graphs/main.json"},"components":{"DoSomething":"components/DoSomething.js"}}}');
 });
 require.register("noflo-browser-app/components/DoSomething.js", function(exports, require, module){
 var noflo;
@@ -13063,6 +14614,45 @@ module.exports = {
 });
 
 
+require.register("noflo-noflo-runtime-webrtc/component.json", function(exports, require, module){
+module.exports = {
+  "name": "noflo-runtime-webrtc",
+  "description": "WebRTC runtime transport support for NoFlo",
+  "keywords": [
+    "fbp",
+    "webrtc",
+    "flowhub",
+    "noflo"
+  ],
+  "repo": "noflo/noflo-runtime-webrtc",
+  "version": "0.0.4",
+  "dependencies": {
+    "noflo/noflo-runtime-base": "*",
+    "bergie/emitter": "*",
+    "broofa/node-uuid": "*",
+    "noflo/noflo": "*",
+    "noflo/noflo-core": "*"
+  },
+  "remotes": [
+    "https://raw.githubusercontent.com"
+  ],
+  "development": {
+  },
+  "license": "MIT",
+  "main": "runtime/network.js",
+  "scripts": [
+    "runtime/network.js"
+  ],
+  "json": [
+    "component.json"
+  ]
+}
+
+});
+
+
+
+
 
 
 
@@ -13241,3 +14831,131 @@ require.alias("noflo-fbp/lib/fbp.js", "noflo-noflo/deps/fbp/lib/fbp.js");
 require.alias("noflo-fbp/lib/fbp.js", "noflo-noflo/deps/fbp/index.js");
 require.alias("noflo-fbp/lib/fbp.js", "noflo-fbp/index.js");
 require.alias("noflo-noflo/src/lib/NoFlo.js", "noflo-noflo/index.js");
+require.alias("noflo-noflo-runtime-webrtc/runtime/network.js", "noflo-browser-app/deps/noflo-runtime-webrtc/runtime/network.js");
+require.alias("noflo-noflo-runtime-webrtc/runtime/network.js", "noflo-browser-app/deps/noflo-runtime-webrtc/index.js");
+require.alias("noflo-noflo-runtime-webrtc/runtime/network.js", "noflo-runtime-webrtc/index.js");
+require.alias("noflo-noflo-runtime-base/src/Base.js", "noflo-noflo-runtime-webrtc/deps/noflo-runtime-base/src/Base.js");
+require.alias("noflo-noflo-runtime-base/src/protocol/Graph.js", "noflo-noflo-runtime-webrtc/deps/noflo-runtime-base/src/protocol/Graph.js");
+require.alias("noflo-noflo-runtime-base/src/protocol/Network.js", "noflo-noflo-runtime-webrtc/deps/noflo-runtime-base/src/protocol/Network.js");
+require.alias("noflo-noflo-runtime-base/src/protocol/Component.js", "noflo-noflo-runtime-webrtc/deps/noflo-runtime-base/src/protocol/Component.js");
+require.alias("noflo-noflo-runtime-base/src/protocol/Runtime.js", "noflo-noflo-runtime-webrtc/deps/noflo-runtime-base/src/protocol/Runtime.js");
+require.alias("noflo-noflo-runtime-base/src/Base.js", "noflo-noflo-runtime-webrtc/deps/noflo-runtime-base/index.js");
+require.alias("noflo-noflo/src/lib/Graph.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/Graph.js");
+require.alias("noflo-noflo/src/lib/InternalSocket.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/InternalSocket.js");
+require.alias("noflo-noflo/src/lib/BasePort.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/BasePort.js");
+require.alias("noflo-noflo/src/lib/InPort.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/InPort.js");
+require.alias("noflo-noflo/src/lib/OutPort.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/OutPort.js");
+require.alias("noflo-noflo/src/lib/Ports.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/Ports.js");
+require.alias("noflo-noflo/src/lib/Port.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/Port.js");
+require.alias("noflo-noflo/src/lib/ArrayPort.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/ArrayPort.js");
+require.alias("noflo-noflo/src/lib/Component.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/Component.js");
+require.alias("noflo-noflo/src/lib/AsyncComponent.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/AsyncComponent.js");
+require.alias("noflo-noflo/src/lib/LoggingComponent.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/LoggingComponent.js");
+require.alias("noflo-noflo/src/lib/ComponentLoader.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/ComponentLoader.js");
+require.alias("noflo-noflo/src/lib/NoFlo.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/NoFlo.js");
+require.alias("noflo-noflo/src/lib/Network.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/Network.js");
+require.alias("noflo-noflo/src/lib/Platform.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/Platform.js");
+require.alias("noflo-noflo/src/lib/Journal.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/Journal.js");
+require.alias("noflo-noflo/src/lib/Utils.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/Utils.js");
+require.alias("noflo-noflo/src/lib/Helpers.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/Helpers.js");
+require.alias("noflo-noflo/src/lib/Streams.js", "noflo-noflo-runtime-base/deps/noflo/src/lib/Streams.js");
+require.alias("noflo-noflo/src/components/Graph.js", "noflo-noflo-runtime-base/deps/noflo/src/components/Graph.js");
+require.alias("noflo-noflo/src/lib/NoFlo.js", "noflo-noflo-runtime-base/deps/noflo/index.js");
+require.alias("bergie-emitter/index.js", "noflo-noflo/deps/events/index.js");
+
+require.alias("jashkenas-underscore/underscore.js", "noflo-noflo/deps/underscore/underscore.js");
+require.alias("jashkenas-underscore/underscore.js", "noflo-noflo/deps/underscore/index.js");
+require.alias("jashkenas-underscore/underscore.js", "jashkenas-underscore/index.js");
+require.alias("noflo-fbp/lib/fbp.js", "noflo-noflo/deps/fbp/lib/fbp.js");
+require.alias("noflo-fbp/lib/fbp.js", "noflo-noflo/deps/fbp/index.js");
+require.alias("noflo-fbp/lib/fbp.js", "noflo-fbp/index.js");
+require.alias("noflo-noflo/src/lib/NoFlo.js", "noflo-noflo/index.js");
+require.alias("bergie-emitter/index.js", "noflo-noflo-runtime-base/deps/events/index.js");
+
+require.alias("noflo-noflo-runtime-base/src/Base.js", "noflo-noflo-runtime-base/index.js");
+require.alias("bergie-emitter/index.js", "noflo-noflo-runtime-webrtc/deps/events/index.js");
+
+require.alias("broofa-node-uuid/uuid.js", "noflo-noflo-runtime-webrtc/deps/node-uuid/uuid.js");
+require.alias("broofa-node-uuid/uuid.js", "noflo-noflo-runtime-webrtc/deps/node-uuid/index.js");
+require.alias("broofa-node-uuid/uuid.js", "broofa-node-uuid/index.js");
+require.alias("noflo-noflo/src/lib/Graph.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/Graph.js");
+require.alias("noflo-noflo/src/lib/InternalSocket.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/InternalSocket.js");
+require.alias("noflo-noflo/src/lib/BasePort.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/BasePort.js");
+require.alias("noflo-noflo/src/lib/InPort.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/InPort.js");
+require.alias("noflo-noflo/src/lib/OutPort.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/OutPort.js");
+require.alias("noflo-noflo/src/lib/Ports.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/Ports.js");
+require.alias("noflo-noflo/src/lib/Port.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/Port.js");
+require.alias("noflo-noflo/src/lib/ArrayPort.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/ArrayPort.js");
+require.alias("noflo-noflo/src/lib/Component.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/Component.js");
+require.alias("noflo-noflo/src/lib/AsyncComponent.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/AsyncComponent.js");
+require.alias("noflo-noflo/src/lib/LoggingComponent.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/LoggingComponent.js");
+require.alias("noflo-noflo/src/lib/ComponentLoader.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/ComponentLoader.js");
+require.alias("noflo-noflo/src/lib/NoFlo.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/NoFlo.js");
+require.alias("noflo-noflo/src/lib/Network.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/Network.js");
+require.alias("noflo-noflo/src/lib/Platform.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/Platform.js");
+require.alias("noflo-noflo/src/lib/Journal.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/Journal.js");
+require.alias("noflo-noflo/src/lib/Utils.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/Utils.js");
+require.alias("noflo-noflo/src/lib/Helpers.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/Helpers.js");
+require.alias("noflo-noflo/src/lib/Streams.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/lib/Streams.js");
+require.alias("noflo-noflo/src/components/Graph.js", "noflo-noflo-runtime-webrtc/deps/noflo/src/components/Graph.js");
+require.alias("noflo-noflo/src/lib/NoFlo.js", "noflo-noflo-runtime-webrtc/deps/noflo/index.js");
+require.alias("bergie-emitter/index.js", "noflo-noflo/deps/events/index.js");
+
+require.alias("jashkenas-underscore/underscore.js", "noflo-noflo/deps/underscore/underscore.js");
+require.alias("jashkenas-underscore/underscore.js", "noflo-noflo/deps/underscore/index.js");
+require.alias("jashkenas-underscore/underscore.js", "jashkenas-underscore/index.js");
+require.alias("noflo-fbp/lib/fbp.js", "noflo-noflo/deps/fbp/lib/fbp.js");
+require.alias("noflo-fbp/lib/fbp.js", "noflo-noflo/deps/fbp/index.js");
+require.alias("noflo-fbp/lib/fbp.js", "noflo-fbp/index.js");
+require.alias("noflo-noflo/src/lib/NoFlo.js", "noflo-noflo/index.js");
+require.alias("noflo-noflo-core/components/Callback.js", "noflo-noflo-runtime-webrtc/deps/noflo-core/components/Callback.js");
+require.alias("noflo-noflo-core/components/DisconnectAfterPacket.js", "noflo-noflo-runtime-webrtc/deps/noflo-core/components/DisconnectAfterPacket.js");
+require.alias("noflo-noflo-core/components/Drop.js", "noflo-noflo-runtime-webrtc/deps/noflo-core/components/Drop.js");
+require.alias("noflo-noflo-core/components/Group.js", "noflo-noflo-runtime-webrtc/deps/noflo-core/components/Group.js");
+require.alias("noflo-noflo-core/components/Kick.js", "noflo-noflo-runtime-webrtc/deps/noflo-core/components/Kick.js");
+require.alias("noflo-noflo-core/components/Merge.js", "noflo-noflo-runtime-webrtc/deps/noflo-core/components/Merge.js");
+require.alias("noflo-noflo-core/components/Output.js", "noflo-noflo-runtime-webrtc/deps/noflo-core/components/Output.js");
+require.alias("noflo-noflo-core/components/Repeat.js", "noflo-noflo-runtime-webrtc/deps/noflo-core/components/Repeat.js");
+require.alias("noflo-noflo-core/components/RepeatAsync.js", "noflo-noflo-runtime-webrtc/deps/noflo-core/components/RepeatAsync.js");
+require.alias("noflo-noflo-core/components/RepeatDelayed.js", "noflo-noflo-runtime-webrtc/deps/noflo-core/components/RepeatDelayed.js");
+require.alias("noflo-noflo-core/components/SendNext.js", "noflo-noflo-runtime-webrtc/deps/noflo-core/components/SendNext.js");
+require.alias("noflo-noflo-core/components/Split.js", "noflo-noflo-runtime-webrtc/deps/noflo-core/components/Split.js");
+require.alias("noflo-noflo-core/components/RunInterval.js", "noflo-noflo-runtime-webrtc/deps/noflo-core/components/RunInterval.js");
+require.alias("noflo-noflo-core/components/RunTimeout.js", "noflo-noflo-runtime-webrtc/deps/noflo-core/components/RunTimeout.js");
+require.alias("noflo-noflo-core/components/MakeFunction.js", "noflo-noflo-runtime-webrtc/deps/noflo-core/components/MakeFunction.js");
+require.alias("noflo-noflo-core/index.js", "noflo-noflo-runtime-webrtc/deps/noflo-core/index.js");
+require.alias("noflo-noflo-core/components/ReadGlobal.js", "noflo-noflo-runtime-webrtc/deps/noflo-core/components/ReadGlobal.js");
+require.alias("noflo-noflo/src/lib/Graph.js", "noflo-noflo-core/deps/noflo/src/lib/Graph.js");
+require.alias("noflo-noflo/src/lib/InternalSocket.js", "noflo-noflo-core/deps/noflo/src/lib/InternalSocket.js");
+require.alias("noflo-noflo/src/lib/BasePort.js", "noflo-noflo-core/deps/noflo/src/lib/BasePort.js");
+require.alias("noflo-noflo/src/lib/InPort.js", "noflo-noflo-core/deps/noflo/src/lib/InPort.js");
+require.alias("noflo-noflo/src/lib/OutPort.js", "noflo-noflo-core/deps/noflo/src/lib/OutPort.js");
+require.alias("noflo-noflo/src/lib/Ports.js", "noflo-noflo-core/deps/noflo/src/lib/Ports.js");
+require.alias("noflo-noflo/src/lib/Port.js", "noflo-noflo-core/deps/noflo/src/lib/Port.js");
+require.alias("noflo-noflo/src/lib/ArrayPort.js", "noflo-noflo-core/deps/noflo/src/lib/ArrayPort.js");
+require.alias("noflo-noflo/src/lib/Component.js", "noflo-noflo-core/deps/noflo/src/lib/Component.js");
+require.alias("noflo-noflo/src/lib/AsyncComponent.js", "noflo-noflo-core/deps/noflo/src/lib/AsyncComponent.js");
+require.alias("noflo-noflo/src/lib/LoggingComponent.js", "noflo-noflo-core/deps/noflo/src/lib/LoggingComponent.js");
+require.alias("noflo-noflo/src/lib/ComponentLoader.js", "noflo-noflo-core/deps/noflo/src/lib/ComponentLoader.js");
+require.alias("noflo-noflo/src/lib/NoFlo.js", "noflo-noflo-core/deps/noflo/src/lib/NoFlo.js");
+require.alias("noflo-noflo/src/lib/Network.js", "noflo-noflo-core/deps/noflo/src/lib/Network.js");
+require.alias("noflo-noflo/src/lib/Platform.js", "noflo-noflo-core/deps/noflo/src/lib/Platform.js");
+require.alias("noflo-noflo/src/lib/Journal.js", "noflo-noflo-core/deps/noflo/src/lib/Journal.js");
+require.alias("noflo-noflo/src/lib/Utils.js", "noflo-noflo-core/deps/noflo/src/lib/Utils.js");
+require.alias("noflo-noflo/src/lib/Helpers.js", "noflo-noflo-core/deps/noflo/src/lib/Helpers.js");
+require.alias("noflo-noflo/src/lib/Streams.js", "noflo-noflo-core/deps/noflo/src/lib/Streams.js");
+require.alias("noflo-noflo/src/components/Graph.js", "noflo-noflo-core/deps/noflo/src/components/Graph.js");
+require.alias("noflo-noflo/src/lib/NoFlo.js", "noflo-noflo-core/deps/noflo/index.js");
+require.alias("bergie-emitter/index.js", "noflo-noflo/deps/events/index.js");
+
+require.alias("jashkenas-underscore/underscore.js", "noflo-noflo/deps/underscore/underscore.js");
+require.alias("jashkenas-underscore/underscore.js", "noflo-noflo/deps/underscore/index.js");
+require.alias("jashkenas-underscore/underscore.js", "jashkenas-underscore/index.js");
+require.alias("noflo-fbp/lib/fbp.js", "noflo-noflo/deps/fbp/lib/fbp.js");
+require.alias("noflo-fbp/lib/fbp.js", "noflo-noflo/deps/fbp/index.js");
+require.alias("noflo-fbp/lib/fbp.js", "noflo-fbp/index.js");
+require.alias("noflo-noflo/src/lib/NoFlo.js", "noflo-noflo/index.js");
+require.alias("jashkenas-underscore/underscore.js", "noflo-noflo-core/deps/underscore/underscore.js");
+require.alias("jashkenas-underscore/underscore.js", "noflo-noflo-core/deps/underscore/index.js");
+require.alias("jashkenas-underscore/underscore.js", "jashkenas-underscore/index.js");
+require.alias("noflo-noflo-runtime-webrtc/runtime/network.js", "noflo-noflo-runtime-webrtc/index.js");
