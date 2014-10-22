@@ -7,4 +7,4 @@ after_success:
 - grunt gh-pages
 env:
   global:
-    secure: T2H7SFN56s6V50+V7bHYcKCw/aoh018SgPKM3RK9Cxf0PW7uVY7VzY8guU9i1MRQ2m6lgaFbwVyYJhquRAC+NGuC4sPAGxc1up8GpyO6uSOcjJlkD1ysjBrU1dBfj/DV3gxaFVjvpuL/WBMSYaKbQq4vARufPnkqOIAI8bec/4k=
+    secure: gfD86/uZJ0QI1V9tM+W0jvn3XFm2xaW51Bi4tnwOvw2WDlcwQu8RVfm73OTYH2pOctNYyypOvccywIVoYAapxEhXv+J/2Pj+0NVJ5w/0vftxsE5idJIqCp9U2CmNb/Uc8K387T3cDNICORncjqfCyph7oXPoeZ+b7EK4lpEvTtc=
