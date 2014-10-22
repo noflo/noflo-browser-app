@@ -8,7 +8,8 @@
   "dependencies": {
     "noflo/noflo": "*",
     "noflo/noflo-dom": "*",
-    "noflo/noflo-core": "*"
+    "noflo/noflo-core": "*",
+    "noflo/noflo-interaction": "*"
   },
   "remotes": [
     "https://raw.githubusercontent.com"
