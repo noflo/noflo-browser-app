@@ -61,6 +61,15 @@ module.exports = ->
         'max_line_length':
           'level': 'ignore'
 
+    'gh-pages':
+      options:
+        base: 'browser'
+        clone: 'gh-pages'
+        message: 'Updating'
+        repo: 'https://' + process.env.GH_TOKEN + '@github.com/noflo/noflo-browser-app.git'
+        silent: true
+      src: '**/*'
+
   # Grunt plugins used for building
   @loadNpmTasks 'grunt-contrib-coffee'
   @loadNpmTasks 'grunt-noflo-manifest'
@@ -72,6 +81,9 @@ module.exports = ->
   @loadNpmTasks 'grunt-cafe-mocha'
   @loadNpmTasks 'grunt-mocha-phantomjs'
   @loadNpmTasks 'grunt-coffeelint'
+
+  # Grunt plugins used for deploying
+  @loadNpmTasks 'grunt-gh-pages'
 
   # Our local tasks
   @registerTask 'build', 'Build NoFlo for the chosen target platform', (target = 'all') =>

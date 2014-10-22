@@ -4,3 +4,5 @@
 /spec/*.js
 /spec/*.xml
 flowhub.json
+*~
+gh-pages/
