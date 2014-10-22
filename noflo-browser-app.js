@@ -11476,6 +11476,1314 @@ exports.getComponent = function() {
 };
 
 });
+require.register("noflo-noflo-interaction/index.js", function(exports, require, module){
+/*
+ * This file can be used for general library features that are exposed as CommonJS modules
+ * that the components then utilize
+ */
+
+});
+require.register("noflo-noflo-interaction/component.json", function(exports, require, module){
+module.exports = JSON.parse('{"name":"noflo-interaction","description":"User interaction components for NoFlo","author":"Henri Bergius <henri.bergius@iki.fi>","repo":"noflo/noflo-interaction","version":"0.0.1","keywords":[],"dependencies":{"noflo/noflo":"*"},"scripts":["components/ListenChange.js","components/ListenDrag.js","components/ListenHash.js","components/ListenKeyboard.js","components/ListenKeyboardShortcuts.js","components/ListenMouse.js","components/ListenPointer.js","components/ListenResize.js","components/ListenScroll.js","components/ListenSpeech.js","components/ListenTouch.js","components/SetHash.js","components/ReadCoordinates.js","index.js","components/ReadGamepad.js"],"json":["component.json"],"noflo":{"icon":"user","components":{"ListenChange":"components/ListenChange.js","ListenDrag":"components/ListenDrag.js","ListenHash":"components/ListenHash.js","ListenKeyboard":"components/ListenKeyboard.js","ListenKeyboardShortcuts":"components/ListenKeyboardShortcuts.js","ListenMouse":"components/ListenMouse.js","ListenPointer":"components/ListenPointer.js","ListenResize":"components/ListenResize.js","ListenScroll":"components/ListenScroll.js","ListenSpeech":"components/ListenSpeech.js","ListenTouch":"components/ListenTouch.js","ReadCoordinates":"components/ReadCoordinates.js","ReadGamepad":"components/ReadGamepad.js","SetHash":"components/SetHash.js"}}}');
+});
+require.register("noflo-noflo-interaction/components/ListenChange.js", function(exports, require, module){
+var ListenChange, noflo,
+  __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+  __hasProp = {}.hasOwnProperty,
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+noflo = require('noflo');
+
+ListenChange = (function(_super) {
+  __extends(ListenChange, _super);
+
+  ListenChange.prototype.description = 'Listen to mouse events on a DOM element';
+
+  function ListenChange() {
+    this.change = __bind(this.change, this);
+    this.inPorts = {
+      element: new noflo.Port('object')
+    };
+    this.outPorts = {
+      value: new noflo.ArrayPort('all')
+    };
+    this.inPorts.element.on('data', (function(_this) {
+      return function(element) {
+        return _this.subscribe(element);
+      };
+    })(this));
+  }
+
+  ListenChange.prototype.subscribe = function(element) {
+    return element.addEventListener('change', this.change, false);
+  };
+
+  ListenChange.prototype.change = function(event) {
+    if (!this.outPorts.value.sockets.length) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    this.outPorts.value.send(event.target.value);
+    return this.outPorts.value.disconnect();
+  };
+
+  return ListenChange;
+
+})(noflo.Component);
+
+exports.getComponent = function() {
+  return new ListenChange;
+};
+
+});
+require.register("noflo-noflo-interaction/components/ListenDrag.js", function(exports, require, module){
+var ListenDrag, noflo,
+  __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+  __hasProp = {}.hasOwnProperty,
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+noflo = require('noflo');
+
+ListenDrag = (function(_super) {
+  __extends(ListenDrag, _super);
+
+  ListenDrag.prototype.description = 'Listen to drag events on a DOM element';
+
+  ListenDrag.prototype.icon = 'arrows';
+
+  function ListenDrag() {
+    this.dragend = __bind(this.dragend, this);
+    this.dragmove = __bind(this.dragmove, this);
+    this.dragstart = __bind(this.dragstart, this);
+    this.inPorts = {
+      element: new noflo.Port('object')
+    };
+    this.outPorts = {
+      start: new noflo.ArrayPort('object'),
+      movex: new noflo.ArrayPort('number'),
+      movey: new noflo.ArrayPort('number'),
+      end: new noflo.ArrayPort('object')
+    };
+    this.inPorts.element.on('data', (function(_this) {
+      return function(element) {
+        return _this.subscribe(element);
+      };
+    })(this));
+  }
+
+  ListenDrag.prototype.subscribe = function(element) {
+    element.addEventListener('dragstart', this.dragstart, false);
+    element.addEventListener('drag', this.dragmove, false);
+    return element.addEventListener('dragend', this.dragend, false);
+  };
+
+  ListenDrag.prototype.dragstart = function(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.outPorts.start.send(event);
+    return this.outPorts.start.disconnect();
+  };
+
+  ListenDrag.prototype.dragmove = function(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.outPorts.movex.send(event.clientX);
+    return this.outPorts.movey.send(event.clientY);
+  };
+
+  ListenDrag.prototype.dragend = function(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.outPorts.movex.isConnected()) {
+      this.outPorts.movex.disconnect();
+    }
+    if (this.outPorts.movey.isConnected()) {
+      this.outPorts.movey.disconnect();
+    }
+    this.outPorts.end.send(event);
+    return this.outPorts.end.disconnect();
+  };
+
+  return ListenDrag;
+
+})(noflo.Component);
+
+exports.getComponent = function() {
+  return new ListenDrag;
+};
+
+});
+require.register("noflo-noflo-interaction/components/ListenHash.js", function(exports, require, module){
+var ListenHash, noflo,
+  __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+  __hasProp = {}.hasOwnProperty,
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+noflo = require('noflo');
+
+ListenHash = (function(_super) {
+  __extends(ListenHash, _super);
+
+  ListenHash.prototype.description = 'Listen for hash changes in browser\'s URL bar';
+
+  ListenHash.prototype.icon = 'slack';
+
+  function ListenHash() {
+    this.hashChange = __bind(this.hashChange, this);
+    this.current = null;
+    this.inPorts = new noflo.InPorts({
+      start: {
+        datatype: 'bang',
+        description: 'Start listening for hash changes'
+      },
+      stop: {
+        datatype: 'bang',
+        description: 'Stop listening for hash changes'
+      }
+    });
+    this.outPorts = new noflo.OutPorts({
+      initial: {
+        datatype: 'string',
+        required: false
+      },
+      change: {
+        datatype: 'string',
+        required: false
+      }
+    });
+    this.inPorts.start.on('data', (function(_this) {
+      return function() {
+        return _this.subscribe();
+      };
+    })(this));
+    this.inPorts.stop.on('data', (function(_this) {
+      return function() {
+        return _this.unsubscribe();
+      };
+    })(this));
+  }
+
+  ListenHash.prototype.subscribe = function() {
+    this.current = this.getHash();
+    window.addEventListener('hashchange', this.hashChange, false);
+    this.outPorts.initial.send(this.current);
+    return this.outPorts.initial.disconnect();
+  };
+
+  ListenHash.prototype.unsubscribe = function() {
+    window.removeEventListener('hashchange', this.hashChange, false);
+    return this.outPorts.change.disconnect();
+  };
+
+  ListenHash.prototype.hashChange = function(event) {
+    var oldHash;
+    oldHash = this.current;
+    this.current = this.getHash();
+    if (oldHash) {
+      this.outPorts.change.beginGroup(oldHash);
+    }
+    this.outPorts.change.send(this.current);
+    if (oldHash) {
+      return this.outPorts.change.endGroup(oldHash);
+    }
+  };
+
+  ListenHash.prototype.getHash = function() {
+    return window.location.href.split('#')[1] || '';
+  };
+
+  ListenHash.prototype.shutdown = function() {
+    return this.unsubscribe();
+  };
+
+  return ListenHash;
+
+})(noflo.Component);
+
+exports.getComponent = function() {
+  return new ListenHash;
+};
+
+});
+require.register("noflo-noflo-interaction/components/ListenKeyboard.js", function(exports, require, module){
+var ListenKeyboard, noflo,
+  __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+  __hasProp = {}.hasOwnProperty,
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+noflo = require('noflo');
+
+ListenKeyboard = (function(_super) {
+  __extends(ListenKeyboard, _super);
+
+  ListenKeyboard.prototype.description = 'Listen for key presses on a given DOM element';
+
+  ListenKeyboard.prototype.icon = 'keyboard-o';
+
+  function ListenKeyboard() {
+    this.keypress = __bind(this.keypress, this);
+    this.elements = [];
+    this.inPorts = {
+      element: new noflo.Port('object'),
+      stop: new noflo.Port('object')
+    };
+    this.outPorts = {
+      keypress: new noflo.Port('int')
+    };
+    this.inPorts.element.on('data', (function(_this) {
+      return function(element) {
+        return _this.subscribe(element);
+      };
+    })(this));
+    this.inPorts.stop.on('data', (function(_this) {
+      return function(element) {
+        return _this.unsubscribe(element);
+      };
+    })(this));
+  }
+
+  ListenKeyboard.prototype.subscribe = function(element) {
+    element.addEventListener('keypress', this.keypress, false);
+    return this.elements.push(element);
+  };
+
+  ListenKeyboard.prototype.unsubscribe = function(element) {
+    if (-1 === this.elements.indexOf(element)) {
+      return;
+    }
+    element.removeEventListener('keypress', this.keypress, false);
+    return this.elements.splice(this.elements.indexOf(element), 1);
+  };
+
+  ListenKeyboard.prototype.keypress = function(event) {
+    if (!this.outPorts.keypress.isAttached()) {
+      return;
+    }
+    this.outPorts.keypress.send(event.keyCode);
+    return this.outPorts.keypress.disconnect();
+  };
+
+  ListenKeyboard.prototype.shutdown = function() {
+    var element, _i, _len, _ref, _results;
+    _ref = this.elements;
+    _results = [];
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      element = _ref[_i];
+      _results.push(this.unsubscribe(element));
+    }
+    return _results;
+  };
+
+  return ListenKeyboard;
+
+})(noflo.Component);
+
+exports.getComponent = function() {
+  return new ListenKeyboard;
+};
+
+});
+require.register("noflo-noflo-interaction/components/ListenKeyboardShortcuts.js", function(exports, require, module){
+var ListenKeyboardShortcuts, noflo,
+  __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+  __hasProp = {}.hasOwnProperty,
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+noflo = require('noflo');
+
+ListenKeyboardShortcuts = (function(_super) {
+  __extends(ListenKeyboardShortcuts, _super);
+
+  ListenKeyboardShortcuts.prototype.description = 'Listen for keyboard shortcuts and route them';
+
+  ListenKeyboardShortcuts.prototype.icon = 'keyboard-o';
+
+  function ListenKeyboardShortcuts() {
+    this.keypress = __bind(this.keypress, this);
+    this.keys = [];
+    this.ignoreInput = true;
+    this.inPorts = {
+      keys: new noflo.Port('string'),
+      ignoreinput: new noflo.Port('boolean'),
+      stop: new noflo.Port('bang')
+    };
+    this.outPorts = {
+      shortcut: new noflo.ArrayPort('bang'),
+      missed: new noflo.Port('int')
+    };
+    this.inPorts.keys.on('data', (function(_this) {
+      return function(data) {
+        _this.keys = _this.normalizeKeys(data);
+        return _this.subscribe();
+      };
+    })(this));
+    this.inPorts.ignoreinput.on('data', (function(_this) {
+      return function(data) {
+        return _this.ignoreInput = String(data) === 'true';
+      };
+    })(this));
+    this.inPorts.stop.on('data', (function(_this) {
+      return function() {
+        return _this.unsubscribe();
+      };
+    })(this));
+  }
+
+  ListenKeyboardShortcuts.prototype.subscribe = function() {
+    return document.addEventListener('keydown', this.keypress, false);
+  };
+
+  ListenKeyboardShortcuts.prototype.unsubscribe = function() {
+    return document.removeEventListener('keydown', this.keypress, false);
+  };
+
+  ListenKeyboardShortcuts.prototype.normalizeKeys = function(data) {
+    var index, key, keys, _i, _len;
+    keys = data.split(',');
+    for (index = _i = 0, _len = keys.length; _i < _len; index = ++_i) {
+      key = keys[index];
+      switch (key) {
+        case '-':
+          keys[index] = 189;
+          break;
+        case '=':
+          keys[index] = 187;
+          break;
+        case '0':
+          keys[index] = 48;
+          break;
+        case 'a':
+          keys[index] = 65;
+          break;
+        case 'x':
+          keys[index] = 88;
+          break;
+        case 'c':
+          keys[index] = 67;
+          break;
+        case 'v':
+          keys[index] = 86;
+          break;
+        case 'z':
+          keys[index] = 90;
+          break;
+        case 'r':
+          keys[index] = 82;
+          break;
+        case 's':
+          keys[index] = 83;
+      }
+    }
+    return keys;
+  };
+
+  ListenKeyboardShortcuts.prototype.validateTarget = function(event) {
+    if (!this.ignoreInput) {
+      return true;
+    }
+    if (event.target.tagName === 'TEXTAREA') {
+      return false;
+    }
+    if (event.target.tagName === 'INPUT') {
+      return false;
+    }
+    if (String(event.target.contentEditable) === 'true') {
+      return false;
+    }
+    return true;
+  };
+
+  ListenKeyboardShortcuts.prototype.keypress = function(event) {
+    var route;
+    if (!(event.ctrlKey || event.metaKey)) {
+      return;
+    }
+    if (!this.validateTarget(event)) {
+      return;
+    }
+    route = this.keys.indexOf(event.keyCode);
+    if (route === -1) {
+      if (this.outPorts.missed.isAttached()) {
+        this.outPorts.missed.send(event.keyCode);
+        this.outPorts.missed.disconnect();
+      }
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    this.outPorts.shortcut.send(event.keyCode, route);
+    return this.outPorts.shortcut.disconnect();
+  };
+
+  ListenKeyboardShortcuts.prototype.shutdown = function() {
+    return this.unsubscribe();
+  };
+
+  return ListenKeyboardShortcuts;
+
+})(noflo.Component);
+
+exports.getComponent = function() {
+  return new ListenKeyboardShortcuts;
+};
+
+});
+require.register("noflo-noflo-interaction/components/ListenMouse.js", function(exports, require, module){
+var ListenMouse, noflo,
+  __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+  __hasProp = {}.hasOwnProperty,
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+noflo = require('noflo');
+
+ListenMouse = (function(_super) {
+  __extends(ListenMouse, _super);
+
+  ListenMouse.prototype.description = 'Listen to mouse events on a DOM element';
+
+  function ListenMouse() {
+    this.dblclick = __bind(this.dblclick, this);
+    this.click = __bind(this.click, this);
+    this.inPorts = {
+      element: new noflo.Port('object')
+    };
+    this.outPorts = {
+      click: new noflo.ArrayPort('object'),
+      dblclick: new noflo.ArrayPort('object')
+    };
+    this.inPorts.element.on('data', (function(_this) {
+      return function(element) {
+        return _this.subscribe(element);
+      };
+    })(this));
+  }
+
+  ListenMouse.prototype.subscribe = function(element) {
+    element.addEventListener('click', this.click, false);
+    return element.addEventListener('dblclick', this.dblclick, false);
+  };
+
+  ListenMouse.prototype.click = function(event) {
+    if (!this.outPorts.click.sockets.length) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    this.outPorts.click.send(event);
+    this.outPorts.click.disconnect();
+    return this.updateIcon();
+  };
+
+  ListenMouse.prototype.dblclick = function(event) {
+    if (!this.outPorts.dblclick.sockets.length) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    this.outPorts.dblclick.send(event);
+    this.outPorts.dblclick.disconnect();
+    return this.updateIcon();
+  };
+
+  ListenMouse.prototype.updateIcon = function() {
+    if (!this.setIcon) {
+      return;
+    }
+    if (this.timeout) {
+      return;
+    }
+    this.originalIcon = this.getIcon();
+    this.setIcon('exclamation-circle');
+    return this.timeout = setTimeout((function(_this) {
+      return function() {
+        _this.setIcon(_this.originalIcon);
+        return _this.timeout = null;
+      };
+    })(this), 200);
+  };
+
+  return ListenMouse;
+
+})(noflo.Component);
+
+exports.getComponent = function() {
+  return new ListenMouse;
+};
+
+});
+require.register("noflo-noflo-interaction/components/ListenPointer.js", function(exports, require, module){
+var ListenPointer, noflo,
+  __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+  __hasProp = {}.hasOwnProperty,
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+noflo = require('noflo');
+
+ListenPointer = (function(_super) {
+  __extends(ListenPointer, _super);
+
+  ListenPointer.prototype.description = 'Listen to pointer events on a DOM element';
+
+  function ListenPointer() {
+    this.pointerLeave = __bind(this.pointerLeave, this);
+    this.pointerEnter = __bind(this.pointerEnter, this);
+    this.pointerOut = __bind(this.pointerOut, this);
+    this.pointerOver = __bind(this.pointerOver, this);
+    this.pointerMove = __bind(this.pointerMove, this);
+    this.pointerCancel = __bind(this.pointerCancel, this);
+    this.pointerUp = __bind(this.pointerUp, this);
+    this.pointerDown = __bind(this.pointerDown, this);
+    this.action = 'none';
+    this.capture = false;
+    this.propagate = false;
+    this.elements = [];
+    this.inPorts = {
+      element: new noflo.Port('object'),
+      action: new noflo.Port('string'),
+      capture: new noflo.Port('boolean'),
+      propagate: new noflo.Port('boolean')
+    };
+    this.outPorts = {
+      down: new noflo.Port('object'),
+      up: new noflo.Port('object'),
+      cancel: new noflo.Port('object'),
+      move: new noflo.Port('object'),
+      over: new noflo.Port('object'),
+      out: new noflo.Port('object'),
+      enter: new noflo.Port('object'),
+      leave: new noflo.Port('object')
+    };
+    this.inPorts.element.on('data', (function(_this) {
+      return function(element) {
+        return _this.subscribe(element);
+      };
+    })(this));
+    this.inPorts.action.on('data', (function(_this) {
+      return function(action) {
+        _this.action = action;
+      };
+    })(this));
+    this.inPorts.capture.on('data', (function(_this) {
+      return function(capture) {
+        _this.capture = capture;
+      };
+    })(this));
+    this.inPorts.propagate.on('data', (function(_this) {
+      return function(propagate) {
+        _this.propagate = propagate;
+      };
+    })(this));
+  }
+
+  ListenPointer.prototype.subscribe = function(element) {
+    if (element.setAttribute) {
+      element.setAttribute('touch-action', this.action);
+    }
+    element.addEventListener('pointerdown', this.pointerDown, this.capture);
+    element.addEventListener('pointerup', this.pointerUp, this.capture);
+    element.addEventListener('pointercancel', this.pointerCancel, this.capture);
+    element.addEventListener('pointermove', this.pointerMove, this.capture);
+    element.addEventListener('pointerover', this.pointerOver, this.capture);
+    element.addEventListener('pointerout', this.pointerOut, this.capture);
+    element.addEventListener('pointerenter', this.pointerEnter, this.capture);
+    element.addEventListener('pointerleave', this.pointerLeave, this.capture);
+    return this.elements.push(element);
+  };
+
+  ListenPointer.prototype.unsubscribe = function(element) {
+    var name, port, _ref, _results;
+    if (element.removeAttribute) {
+      element.removeAttribute('touch-action');
+    }
+    element.removeEventListener('pointerdown', this.pointerDown, this.capture);
+    element.removeEventListener('pointerup', this.pointerUp, this.capture);
+    element.removeEventListener('pointercancel', this.pointerCancel, this.capture);
+    element.removeEventListener('pointermove', this.pointerMove, this.capture);
+    element.removeEventListener('pointerover', this.pointerOver, this.capture);
+    element.removeEventListener('pointerout', this.pointerOut, this.capture);
+    element.removeEventListener('pointerenter', this.pointerEnter, this.capture);
+    element.removeEventListener('pointerleave', this.pointerLeave, this.capture);
+    _ref = this.outPorts;
+    _results = [];
+    for (name in _ref) {
+      port = _ref[name];
+      if (!port.isAttached()) {
+        continue;
+      }
+      _results.push(port.disconnect());
+    }
+    return _results;
+  };
+
+  ListenPointer.prototype.shutdown = function() {
+    var element, _i, _len, _ref;
+    _ref = this.elements;
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      element = _ref[_i];
+      this.unsubscribe(element);
+    }
+    return this.elements = [];
+  };
+
+  ListenPointer.prototype.pointerDown = function(event) {
+    return this.handle(event, 'down');
+  };
+
+  ListenPointer.prototype.pointerUp = function(event) {
+    return this.handle(event, 'up');
+  };
+
+  ListenPointer.prototype.pointerCancel = function(event) {
+    return this.handle(event, 'cancel');
+  };
+
+  ListenPointer.prototype.pointerMove = function(event) {
+    return this.handle(event, 'move');
+  };
+
+  ListenPointer.prototype.pointerOver = function(event) {
+    return this.handle(event, 'over');
+  };
+
+  ListenPointer.prototype.pointerOut = function(event) {
+    return this.handle(event, 'out');
+  };
+
+  ListenPointer.prototype.pointerEnter = function(event) {
+    return this.handle(event, 'enter');
+  };
+
+  ListenPointer.prototype.pointerLeave = function(event) {
+    return this.handle(event, 'leave');
+  };
+
+  ListenPointer.prototype.handle = function(event, type) {
+    var name, port, _ref, _results;
+    event.preventDefault();
+    if (!this.propagate) {
+      event.stopPropagation();
+    }
+    if (!this.outPorts[type].isAttached()) {
+      return;
+    }
+    this.outPorts[type].beginGroup(event.pointerId);
+    this.outPorts[type].send(event);
+    this.outPorts[type].endGroup();
+    if (type === 'up' || type === 'cancel' || type === 'leave') {
+      _ref = this.outPorts;
+      _results = [];
+      for (name in _ref) {
+        port = _ref[name];
+        if (!port.isAttached()) {
+          continue;
+        }
+        _results.push(port.disconnect());
+      }
+      return _results;
+    }
+  };
+
+  return ListenPointer;
+
+})(noflo.Component);
+
+exports.getComponent = function() {
+  return new ListenPointer;
+};
+
+});
+require.register("noflo-noflo-interaction/components/ListenResize.js", function(exports, require, module){
+var ListenResize, noflo,
+  __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+  __hasProp = {}.hasOwnProperty,
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+noflo = require('noflo');
+
+ListenResize = (function(_super) {
+  __extends(ListenResize, _super);
+
+  ListenResize.prototype.description = 'Listen to window resize events';
+
+  ListenResize.prototype.icon = 'desktop';
+
+  function ListenResize() {
+    this.sendSize = __bind(this.sendSize, this);
+    this.inPorts = {
+      start: new noflo.Port('bang'),
+      stop: new noflo.Port('bang')
+    };
+    this.outPorts = {
+      width: new noflo.Port('number'),
+      height: new noflo.Port('number')
+    };
+    this.inPorts.start.on('data', (function(_this) {
+      return function() {
+        _this.sendSize();
+        return _this.subscribe();
+      };
+    })(this));
+    this.inPorts.stop.on('data', (function(_this) {
+      return function() {
+        return _this.unsubscribe();
+      };
+    })(this));
+  }
+
+  ListenResize.prototype.subscribe = function() {
+    return window.addEventListener('resize', this.sendSize, false);
+  };
+
+  ListenResize.prototype.unsubscribe = function() {
+    return window.removeEventListener('resize', this.sendSize, false);
+  };
+
+  ListenResize.prototype.sendSize = function() {
+    if (this.outPorts.width.isAttached()) {
+      this.outPorts.width.send(window.innerWidth);
+      this.outPorts.width.disconnect();
+    }
+    if (this.outPorts.height.isAttached()) {
+      this.outPorts.height.send(window.innerHeight);
+      return this.outPorts.height.disconnect();
+    }
+  };
+
+  ListenResize.prototype.shutdown = function() {
+    return this.unsubscribe();
+  };
+
+  return ListenResize;
+
+})(noflo.Component);
+
+exports.getComponent = function() {
+  return new ListenResize;
+};
+
+});
+require.register("noflo-noflo-interaction/components/ListenScroll.js", function(exports, require, module){
+var ListenScroll, noflo,
+  __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+  __hasProp = {}.hasOwnProperty,
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+noflo = require('noflo');
+
+ListenScroll = (function(_super) {
+  __extends(ListenScroll, _super);
+
+  ListenScroll.prototype.description = 'Listen to scroll events on the browser window';
+
+  ListenScroll.prototype.icon = 'arrows-v';
+
+  function ListenScroll() {
+    this.scroll = __bind(this.scroll, this);
+    this.inPorts = {
+      start: new noflo.Port('bang'),
+      stop: new noflo.Port('bang')
+    };
+    this.outPorts = {
+      top: new noflo.Port('number'),
+      bottom: new noflo.Port('number'),
+      left: new noflo.Port('number'),
+      right: new noflo.Port('number')
+    };
+    this.inPorts.start.on('data', (function(_this) {
+      return function() {
+        return _this.subscribe();
+      };
+    })(this));
+    this.inPorts.stop.on('data', (function(_this) {
+      return function() {
+        return _this.unsubscribe();
+      };
+    })(this));
+  }
+
+  ListenScroll.prototype.subscribe = function() {
+    return window.addEventListener('scroll', this.scroll, false);
+  };
+
+  ListenScroll.prototype.unsubscribe = function() {
+    return window.removeEventListenr('scroll', this.scroll, false);
+  };
+
+  ListenScroll.prototype.scroll = function(event) {
+    var bottom, left, right, top;
+    top = window.scrollY;
+    left = window.scrollX;
+    if (this.outPorts.top.isAttached()) {
+      this.outPorts.top.send(top);
+      this.outPorts.top.disconnect();
+    }
+    if (this.outPorts.bottom.isAttached()) {
+      bottom = top + window.innerHeight;
+      this.outPorts.bottom.send(bottom);
+      this.outPorts.bottom.disconnect();
+    }
+    if (this.outPorts.left.isAttached()) {
+      this.outPorts.left.send(left);
+      this.outPorts.left.disconnect();
+    }
+    if (this.outPorts.right.isAttached()) {
+      right = left + window.innerWidth;
+      this.outPorts.right.send(right);
+      return this.outPorts.right.disconnect();
+    }
+  };
+
+  ListenScroll.prototype.shutdown = function() {
+    return this.unsubscribe();
+  };
+
+  return ListenScroll;
+
+})(noflo.Component);
+
+exports.getComponent = function() {
+  return new ListenScroll;
+};
+
+});
+require.register("noflo-noflo-interaction/components/ListenSpeech.js", function(exports, require, module){
+var ListenSpeech, noflo,
+  __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+  __hasProp = {}.hasOwnProperty,
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+noflo = require('noflo');
+
+ListenSpeech = (function(_super) {
+  __extends(ListenSpeech, _super);
+
+  ListenSpeech.prototype.description = 'Listen for user\'s microphone and recognize phrases';
+
+  ListenSpeech.prototype.icon = 'microphone';
+
+  function ListenSpeech() {
+    this.handleError = __bind(this.handleError, this);
+    this.handleResult = __bind(this.handleResult, this);
+    this.recognition = false;
+    this.sent = [];
+    this.inPorts = {
+      start: new noflo.Port('bang'),
+      stop: new noflo.Port('bang')
+    };
+    this.outPorts = {
+      result: new noflo.Port('string'),
+      error: new noflo.Port('object')
+    };
+    this.inPorts.start.on('data', (function(_this) {
+      return function() {
+        return _this.startListening();
+      };
+    })(this));
+    this.inPorts.stop.on('data', (function(_this) {
+      return function() {
+        return _this.stopListening();
+      };
+    })(this));
+  }
+
+  ListenSpeech.prototype.startListening = function() {
+    if (!window.webkitSpeechRecognition) {
+      this.handleError(new Error('Speech recognition support not available'));
+    }
+    this.recognition = new window.webkitSpeechRecognition;
+    this.recognition.continuous = true;
+    this.recognition.start();
+    this.outPorts.result.connect();
+    this.recognition.onresult = this.handleResult;
+    return this.recognition.onerror = this.handleError;
+  };
+
+  ListenSpeech.prototype.handleResult = function(event) {
+    var idx, result, _i, _len, _ref, _results;
+    _ref = event.results;
+    _results = [];
+    for (idx = _i = 0, _len = _ref.length; _i < _len; idx = ++_i) {
+      result = _ref[idx];
+      if (!result.isFinal) {
+        continue;
+      }
+      if (this.sent.indexOf(idx) !== -1) {
+        continue;
+      }
+      this.outPorts.result.send(result[0].transcript);
+      _results.push(this.sent.push(idx));
+    }
+    return _results;
+  };
+
+  ListenSpeech.prototype.handleError = function(error) {
+    if (this.outPorts.error.isAttached()) {
+      this.outPorts.error.send(error);
+      this.outPorts.error.disconnect();
+      return;
+    }
+    throw error;
+  };
+
+  ListenSpeech.prototype.stopListening = function() {
+    if (!this.recognition) {
+      return;
+    }
+    this.outPorts.result.disconnect();
+    this.recognition.stop();
+    this.recognition = null;
+    return this.sent = [];
+  };
+
+  ListenSpeech.prototype.shutdown = function() {
+    return this.stopListening();
+  };
+
+  return ListenSpeech;
+
+})(noflo.Component);
+
+exports.getComponent = function() {
+  return new ListenSpeech;
+};
+
+});
+require.register("noflo-noflo-interaction/components/ListenTouch.js", function(exports, require, module){
+var ListenTouch, noflo,
+  __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+  __hasProp = {}.hasOwnProperty,
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+noflo = require('noflo');
+
+ListenTouch = (function(_super) {
+  __extends(ListenTouch, _super);
+
+  ListenTouch.prototype.description = 'Listen to touch events on a DOM element';
+
+  ListenTouch.prototype.icon = 'hand-o-up';
+
+  function ListenTouch() {
+    this.touchend = __bind(this.touchend, this);
+    this.touchmove = __bind(this.touchmove, this);
+    this.touchstart = __bind(this.touchstart, this);
+    this.inPorts = {
+      element: new noflo.Port('object')
+    };
+    this.outPorts = {
+      start: new noflo.ArrayPort('object'),
+      movex: new noflo.ArrayPort('number'),
+      movey: new noflo.ArrayPort('number'),
+      end: new noflo.ArrayPort('object')
+    };
+    this.inPorts.element.on('data', (function(_this) {
+      return function(element) {
+        return _this.subscribe(element);
+      };
+    })(this));
+  }
+
+  ListenTouch.prototype.subscribe = function(element) {
+    element.addEventListener('touchstart', this.touchstart, false);
+    element.addEventListener('touchmove', this.touchmove, false);
+    return element.addEventListener('touchend', this.touchend, false);
+  };
+
+  ListenTouch.prototype.touchstart = function(event) {
+    var idx, touch, _i, _len, _ref;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!event.changedTouches) {
+      return;
+    }
+    if (!event.changedTouches.length) {
+      return;
+    }
+    _ref = event.changedTouches;
+    for (idx = _i = 0, _len = _ref.length; _i < _len; idx = ++_i) {
+      touch = _ref[idx];
+      this.outPorts.start.beginGroup(idx);
+      this.outPorts.start.send(event);
+      this.outPorts.start.endGroup();
+    }
+    return this.outPorts.start.disconnect();
+  };
+
+  ListenTouch.prototype.touchmove = function(event) {
+    var idx, touch, _i, _len, _ref, _results;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!event.changedTouches) {
+      return;
+    }
+    if (!event.changedTouches.length) {
+      return;
+    }
+    _ref = event.changedTouches;
+    _results = [];
+    for (idx = _i = 0, _len = _ref.length; _i < _len; idx = ++_i) {
+      touch = _ref[idx];
+      this.outPorts.movex.beginGroup(idx);
+      this.outPorts.movex.send(touch.pageX);
+      this.outPorts.movex.endGroup();
+      this.outPorts.movey.beginGroup(idx);
+      this.outPorts.movey.send(touch.pageY);
+      _results.push(this.outPorts.movey.endGroup());
+    }
+    return _results;
+  };
+
+  ListenTouch.prototype.touchend = function(event) {
+    var idx, touch, _i, _len, _ref;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!event.changedTouches) {
+      return;
+    }
+    if (!event.changedTouches.length) {
+      return;
+    }
+    if (this.outPorts.movex.isConnected()) {
+      this.outPorts.movex.disconnect();
+    }
+    if (this.outPorts.movey.isConnected()) {
+      this.outPorts.movey.disconnect();
+    }
+    _ref = event.changedTouches;
+    for (idx = _i = 0, _len = _ref.length; _i < _len; idx = ++_i) {
+      touch = _ref[idx];
+      this.outPorts.end.beginGroup(idx);
+      this.outPorts.end.send(event);
+      this.outPorts.end.endGroup();
+    }
+    return this.outPorts.end.disconnect();
+  };
+
+  return ListenTouch;
+
+})(noflo.Component);
+
+exports.getComponent = function() {
+  return new ListenTouch;
+};
+
+});
+require.register("noflo-noflo-interaction/components/SetHash.js", function(exports, require, module){
+var SetHash, noflo,
+  __hasProp = {}.hasOwnProperty,
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+noflo = require('noflo');
+
+SetHash = (function(_super) {
+  __extends(SetHash, _super);
+
+  SetHash.prototype.description = 'Set the hash in browser\'s URL bar';
+
+  SetHash.prototype.icon = 'slack';
+
+  function SetHash() {
+    this.inPorts = {
+      hash: new noflo.ArrayPort('string')
+    };
+    this.outPorts = {
+      out: new noflo.Port('string')
+    };
+    this.inPorts.hash.on('data', (function(_this) {
+      return function(data) {
+        window.location.hash = "#" + data;
+        if (_this.outPorts.out.isAttached()) {
+          return _this.outPorts.out.send(data);
+        }
+      };
+    })(this));
+    this.inPorts.hash.on('disconnect', (function(_this) {
+      return function() {
+        if (_this.outPorts.out.isAttached()) {
+          return _this.outPorts.out.disconnect();
+        }
+      };
+    })(this));
+  }
+
+  return SetHash;
+
+})(noflo.Component);
+
+exports.getComponent = function() {
+  return new SetHash;
+};
+
+});
+require.register("noflo-noflo-interaction/components/ReadCoordinates.js", function(exports, require, module){
+var ReadCoordinates, noflo,
+  __hasProp = {}.hasOwnProperty,
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+noflo = require('noflo');
+
+ReadCoordinates = (function(_super) {
+  __extends(ReadCoordinates, _super);
+
+  ReadCoordinates.prototype.description = 'Read the coordinates from a DOM event';
+
+  function ReadCoordinates() {
+    this.inPorts = {
+      event: new noflo.Port('object')
+    };
+    this.outPorts = {
+      screen: new noflo.Port('object'),
+      client: new noflo.Port('object'),
+      page: new noflo.Port('object')
+    };
+    this.inPorts.event.on('begingroup', (function(_this) {
+      return function(group) {
+        if (_this.outPorts.screen.isAttached()) {
+          _this.outPorts.screen.beginGroup(group);
+        }
+        if (_this.outPorts.client.isAttached()) {
+          _this.outPorts.client.beginGroup(group);
+        }
+        if (_this.outPorts.page.isAttached()) {
+          return _this.outPorts.page.beginGroup(group);
+        }
+      };
+    })(this));
+    this.inPorts.event.on('data', (function(_this) {
+      return function(data) {
+        return _this.read(data);
+      };
+    })(this));
+    this.inPorts.event.on('endgroup', (function(_this) {
+      return function() {
+        if (_this.outPorts.screen.isAttached()) {
+          _this.outPorts.screen.endGroup();
+        }
+        if (_this.outPorts.client.isAttached()) {
+          _this.outPorts.client.endGroup();
+        }
+        if (_this.outPorts.page.isAttached()) {
+          return _this.outPorts.page.endGroup();
+        }
+      };
+    })(this));
+    this.inPorts.event.on('disconnect', (function(_this) {
+      return function() {
+        if (_this.outPorts.screen.isAttached()) {
+          _this.outPorts.screen.disconnect();
+        }
+        if (_this.outPorts.client.isAttached()) {
+          _this.outPorts.client.disconnect();
+        }
+        if (_this.outPorts.page.isAttached()) {
+          return _this.outPorts.page.disconnect();
+        }
+      };
+    })(this));
+  }
+
+  ReadCoordinates.prototype.read = function(event) {
+    if (!event) {
+      return;
+    }
+    if (this.outPorts.screen.isAttached() && event.screenX !== void 0) {
+      this.outPorts.screen.send({
+        x: event.screenX,
+        y: event.screenY
+      });
+    }
+    if (this.outPorts.client.isAttached() && event.clientX !== void 0) {
+      this.outPorts.client.send({
+        x: event.clientX,
+        y: event.clientY
+      });
+    }
+    if (this.outPorts.page.isAttached() && event.pageX !== void 0) {
+      return this.outPorts.page.send({
+        x: event.pageX,
+        y: event.pageY
+      });
+    }
+  };
+
+  return ReadCoordinates;
+
+})(noflo.Component);
+
+exports.getComponent = function() {
+  return new ReadCoordinates;
+};
+
+});
+require.register("noflo-noflo-interaction/components/ReadGamepad.js", function(exports, require, module){
+var ReadGamepad, noflo,
+  __hasProp = {}.hasOwnProperty,
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+noflo = require('noflo');
+
+ReadGamepad = (function(_super) {
+  __extends(ReadGamepad, _super);
+
+  ReadGamepad.prototype.description = 'Read the state of a gamepad';
+
+  ReadGamepad.prototype.icon = 'gamepad';
+
+  function ReadGamepad() {
+    this.lastTimestamp;
+    this.inPorts = {
+      gamepad: new noflo.Port('int')
+    };
+    this.outPorts = {
+      out: new noflo.Port('object'),
+      error: new noflo.Port('string')
+    };
+    this.inPorts.gamepad.on('data', (function(_this) {
+      return function(number) {
+        return _this.readGamepad(number);
+      };
+    })(this));
+  }
+
+  ReadGamepad.prototype.readGamepad = function(number) {
+    var gamepadState, msg;
+    if (!navigator.webkitGetGamepads) {
+      msg = "no webkit gamepad api available";
+      if (this.outPorts.error.isAttached()) {
+        this.outPorts.error.send(msg);
+        this.outPorts.error.disconnect();
+        return;
+      } else {
+        throw new Error(msg);
+      }
+    }
+    gamepadState = navigator.webkitGetGamepads()[number];
+    if (!gamepadState) {
+      msg = "state for gamepad '" + number + "' could not been read";
+      if (this.outPorts.error.isAttached()) {
+        this.outPorts.error.send(msg);
+        this.outPorts.error.disconnect();
+        return;
+      } else {
+        throw new Error(msg);
+      }
+    }
+    if (this.lastTimestamp !== gamepadState.timestamp) {
+      this.lastTimestamp = gamepadState.timestamp;
+      return this.outPorts.out.send(gamepadState);
+    }
+  };
+
+  return ReadGamepad;
+
+})(noflo.Component);
+
+exports.getComponent = function() {
+  return new ReadGamepad;
+};
+
+});
 require.register("noflo-browser-app/index.js", function(exports, require, module){
 /*
  * This file can be used for general library features of noflo-browser-app.
@@ -11492,7 +12800,7 @@ require.register("noflo-browser-app/graphs/main.json", function(exports, require
 module.exports = JSON.parse('{"properties":{"name":"main","environment":{"type":"noflo-browser","content":"<button id=\'button\'>Go!</button>\\n<p id=\'message\'></p>"},"icon":""},"inports":{},"outports":{},"groups":[],"processes":{"dom/GetElement_7amk2":{"component":"dom/GetElement","metadata":{"label":"dom/GetElement","x":252,"y":180,"width":72,"height":72}},"core/Output_cg49":{"component":"core/Output","metadata":{"label":"core/Output","x":432,"y":360,"width":72,"height":72}},"dom/WriteHtml_fpz6j":{"component":"dom/WriteHtml","metadata":{"label":"dom/WriteHtml","x":684,"y":288,"width":72,"height":72}},"dom/GetElement_xvz54":{"component":"dom/GetElement","metadata":{"label":"dom/GetElement","x":252,"y":288,"width":72,"height":72}},"interaction/ListenMouse_1l373":{"component":"interaction/ListenMouse","metadata":{"label":"interaction/ListenMouse","x":432,"y":180,"width":72,"height":72}},"core/Kick_ey1nh":{"component":"core/Kick","metadata":{"label":"core/Kick","x":576,"y":180,"width":72,"height":72}}},"connections":[{"src":{"process":"dom/GetElement_xvz54","port":"element"},"tgt":{"process":"dom/WriteHtml_fpz6j","port":"container"},"metadata":{}},{"src":{"process":"dom/GetElement_7amk2","port":"element"},"tgt":{"process":"interaction/ListenMouse_1l373","port":"element"},"metadata":{"route":0}},{"src":{"process":"dom/GetElement_7amk2","port":"error"},"tgt":{"process":"core/Output_cg49","port":"in"},"metadata":{"route":1}},{"src":{"process":"dom/GetElement_xvz54","port":"error"},"tgt":{"process":"core/Output_cg49","port":"in"},"metadata":{"route":1}},{"src":{"process":"interaction/ListenMouse_1l373","port":"click"},"tgt":{"process":"core/Kick_ey1nh","port":"in"},"metadata":{}},{"src":{"process":"core/Kick_ey1nh","port":"out"},"tgt":{"process":"dom/WriteHtml_fpz6j","port":"html"},"metadata":{}},{"data":"#button","tgt":{"process":"dom/GetElement_7amk2","port":"selector"}},{"data":"#message","tgt":{"process":"dom/GetElement_xvz54","port":"selector"}},{"data":"Hello World!","tgt":{"process":"core/Kick_ey1nh","port":"data"}}]}');
 });
 require.register("noflo-browser-app/component.json", function(exports, require, module){
-module.exports = JSON.parse('{"name":"noflo-browser-app","description":"The best project ever.","author":"Jon Nordby <jononor@gmail.com>","repo":"noflo/noflo-browser-app","version":"0.1.0","keywords":[],"dependencies":{"noflo/noflo":"*","noflo/noflo-dom":"*","noflo/noflo-core":"*"},"remotes":["https://raw.githubusercontent.com"],"scripts":["index.js","components/DoSomething.js","graphs/main.json"],"json":["graphs/main.json","component.json"],"noflo":{"graphs":{"main":"graphs/main.json"},"components":{"DoSomething":"components/DoSomething.js"}}}');
+module.exports = JSON.parse('{"name":"noflo-browser-app","description":"The best project ever.","author":"Jon Nordby <jononor@gmail.com>","repo":"noflo/noflo-browser-app","version":"0.1.0","keywords":[],"dependencies":{"noflo/noflo":"*","noflo/noflo-dom":"*","noflo/noflo-core":"*","noflo/noflo-interaction":"*"},"remotes":["https://raw.githubusercontent.com"],"scripts":["index.js","components/DoSomething.js","graphs/main.json"],"json":["graphs/main.json","component.json"],"noflo":{"graphs":{"main":"graphs/main.json"},"components":{"DoSomething":"components/DoSomething.js"}}}');
 });
 require.register("noflo-browser-app/components/DoSomething.js", function(exports, require, module){
 var noflo;
@@ -11701,6 +13009,59 @@ module.exports = {
   }
 }
 });
+require.register("noflo-noflo-interaction/component.json", function(exports, require, module){
+module.exports = {
+  "name": "noflo-interaction",
+  "description": "User interaction components for NoFlo",
+  "author": "Henri Bergius <henri.bergius@iki.fi>",
+  "repo": "noflo/noflo-interaction",
+  "version": "0.0.1",
+  "keywords": [],
+  "dependencies": {
+    "noflo/noflo": "*"
+  },
+  "scripts": [
+    "components/ListenChange.js",
+    "components/ListenDrag.js",
+    "components/ListenHash.js",
+    "components/ListenKeyboard.js",
+    "components/ListenKeyboardShortcuts.js",
+    "components/ListenMouse.js",
+    "components/ListenPointer.js",
+    "components/ListenResize.js",
+    "components/ListenScroll.js",
+    "components/ListenSpeech.js",
+    "components/ListenTouch.js",
+    "components/SetHash.js",
+    "components/ReadCoordinates.js",
+    "index.js",
+    "components/ReadGamepad.js"
+  ],
+  "json": [
+    "component.json"
+  ],
+  "noflo": {
+    "icon": "user",
+    "components": {
+      "ListenChange": "components/ListenChange.js",
+      "ListenDrag": "components/ListenDrag.js",
+      "ListenHash": "components/ListenHash.js",
+      "ListenKeyboard": "components/ListenKeyboard.js",
+      "ListenKeyboardShortcuts": "components/ListenKeyboardShortcuts.js",
+      "ListenMouse": "components/ListenMouse.js",
+      "ListenPointer": "components/ListenPointer.js",
+      "ListenResize": "components/ListenResize.js",
+      "ListenScroll": "components/ListenScroll.js",
+      "ListenSpeech": "components/ListenSpeech.js",
+      "ListenTouch": "components/ListenTouch.js",
+      "ReadCoordinates": "components/ReadCoordinates.js",
+      "ReadGamepad": "components/ReadGamepad.js",
+      "SetHash": "components/SetHash.js"
+    }
+  }
+}
+});
+
 
 
 
@@ -11834,3 +13195,49 @@ require.alias("noflo-noflo/src/lib/NoFlo.js", "noflo-noflo/index.js");
 require.alias("jashkenas-underscore/underscore.js", "noflo-noflo-core/deps/underscore/underscore.js");
 require.alias("jashkenas-underscore/underscore.js", "noflo-noflo-core/deps/underscore/index.js");
 require.alias("jashkenas-underscore/underscore.js", "jashkenas-underscore/index.js");
+require.alias("noflo-noflo-interaction/components/ListenChange.js", "noflo-browser-app/deps/noflo-interaction/components/ListenChange.js");
+require.alias("noflo-noflo-interaction/components/ListenDrag.js", "noflo-browser-app/deps/noflo-interaction/components/ListenDrag.js");
+require.alias("noflo-noflo-interaction/components/ListenHash.js", "noflo-browser-app/deps/noflo-interaction/components/ListenHash.js");
+require.alias("noflo-noflo-interaction/components/ListenKeyboard.js", "noflo-browser-app/deps/noflo-interaction/components/ListenKeyboard.js");
+require.alias("noflo-noflo-interaction/components/ListenKeyboardShortcuts.js", "noflo-browser-app/deps/noflo-interaction/components/ListenKeyboardShortcuts.js");
+require.alias("noflo-noflo-interaction/components/ListenMouse.js", "noflo-browser-app/deps/noflo-interaction/components/ListenMouse.js");
+require.alias("noflo-noflo-interaction/components/ListenPointer.js", "noflo-browser-app/deps/noflo-interaction/components/ListenPointer.js");
+require.alias("noflo-noflo-interaction/components/ListenResize.js", "noflo-browser-app/deps/noflo-interaction/components/ListenResize.js");
+require.alias("noflo-noflo-interaction/components/ListenScroll.js", "noflo-browser-app/deps/noflo-interaction/components/ListenScroll.js");
+require.alias("noflo-noflo-interaction/components/ListenSpeech.js", "noflo-browser-app/deps/noflo-interaction/components/ListenSpeech.js");
+require.alias("noflo-noflo-interaction/components/ListenTouch.js", "noflo-browser-app/deps/noflo-interaction/components/ListenTouch.js");
+require.alias("noflo-noflo-interaction/components/SetHash.js", "noflo-browser-app/deps/noflo-interaction/components/SetHash.js");
+require.alias("noflo-noflo-interaction/components/ReadCoordinates.js", "noflo-browser-app/deps/noflo-interaction/components/ReadCoordinates.js");
+require.alias("noflo-noflo-interaction/index.js", "noflo-browser-app/deps/noflo-interaction/index.js");
+require.alias("noflo-noflo-interaction/components/ReadGamepad.js", "noflo-browser-app/deps/noflo-interaction/components/ReadGamepad.js");
+require.alias("noflo-noflo-interaction/index.js", "noflo-interaction/index.js");
+require.alias("noflo-noflo/src/lib/Graph.js", "noflo-noflo-interaction/deps/noflo/src/lib/Graph.js");
+require.alias("noflo-noflo/src/lib/InternalSocket.js", "noflo-noflo-interaction/deps/noflo/src/lib/InternalSocket.js");
+require.alias("noflo-noflo/src/lib/BasePort.js", "noflo-noflo-interaction/deps/noflo/src/lib/BasePort.js");
+require.alias("noflo-noflo/src/lib/InPort.js", "noflo-noflo-interaction/deps/noflo/src/lib/InPort.js");
+require.alias("noflo-noflo/src/lib/OutPort.js", "noflo-noflo-interaction/deps/noflo/src/lib/OutPort.js");
+require.alias("noflo-noflo/src/lib/Ports.js", "noflo-noflo-interaction/deps/noflo/src/lib/Ports.js");
+require.alias("noflo-noflo/src/lib/Port.js", "noflo-noflo-interaction/deps/noflo/src/lib/Port.js");
+require.alias("noflo-noflo/src/lib/ArrayPort.js", "noflo-noflo-interaction/deps/noflo/src/lib/ArrayPort.js");
+require.alias("noflo-noflo/src/lib/Component.js", "noflo-noflo-interaction/deps/noflo/src/lib/Component.js");
+require.alias("noflo-noflo/src/lib/AsyncComponent.js", "noflo-noflo-interaction/deps/noflo/src/lib/AsyncComponent.js");
+require.alias("noflo-noflo/src/lib/LoggingComponent.js", "noflo-noflo-interaction/deps/noflo/src/lib/LoggingComponent.js");
+require.alias("noflo-noflo/src/lib/ComponentLoader.js", "noflo-noflo-interaction/deps/noflo/src/lib/ComponentLoader.js");
+require.alias("noflo-noflo/src/lib/NoFlo.js", "noflo-noflo-interaction/deps/noflo/src/lib/NoFlo.js");
+require.alias("noflo-noflo/src/lib/Network.js", "noflo-noflo-interaction/deps/noflo/src/lib/Network.js");
+require.alias("noflo-noflo/src/lib/Platform.js", "noflo-noflo-interaction/deps/noflo/src/lib/Platform.js");
+require.alias("noflo-noflo/src/lib/Journal.js", "noflo-noflo-interaction/deps/noflo/src/lib/Journal.js");
+require.alias("noflo-noflo/src/lib/Utils.js", "noflo-noflo-interaction/deps/noflo/src/lib/Utils.js");
+require.alias("noflo-noflo/src/lib/Helpers.js", "noflo-noflo-interaction/deps/noflo/src/lib/Helpers.js");
+require.alias("noflo-noflo/src/lib/Streams.js", "noflo-noflo-interaction/deps/noflo/src/lib/Streams.js");
+require.alias("noflo-noflo/src/components/Graph.js", "noflo-noflo-interaction/deps/noflo/src/components/Graph.js");
+require.alias("noflo-noflo/src/lib/NoFlo.js", "noflo-noflo-interaction/deps/noflo/index.js");
+require.alias("bergie-emitter/index.js", "noflo-noflo/deps/events/index.js");
+
+require.alias("jashkenas-underscore/underscore.js", "noflo-noflo/deps/underscore/underscore.js");
+require.alias("jashkenas-underscore/underscore.js", "noflo-noflo/deps/underscore/index.js");
+require.alias("jashkenas-underscore/underscore.js", "jashkenas-underscore/index.js");
+require.alias("noflo-fbp/lib/fbp.js", "noflo-noflo/deps/fbp/lib/fbp.js");
+require.alias("noflo-fbp/lib/fbp.js", "noflo-noflo/deps/fbp/index.js");
+require.alias("noflo-fbp/lib/fbp.js", "noflo-fbp/index.js");
+require.alias("noflo-noflo/src/lib/NoFlo.js", "noflo-noflo/index.js");
