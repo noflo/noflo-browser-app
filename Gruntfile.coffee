@@ -24,7 +24,9 @@ module.exports = ->
     # Browser build of NoFlo
     noflo_browser:
       build:
-        development: true
+        options:
+          development: true
+          debug: true
         files:
           'browser/noflo-browser-app.js': ['component.json']
 
