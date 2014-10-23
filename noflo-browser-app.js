@@ -3595,7 +3595,7 @@ module.exports = (function(){
 })();
 });
 require.register("noflo-noflo/component.json", function(exports, require, module){
-module.exports = JSON.parse('{"name":"noflo","description":"Flow-Based Programming environment for JavaScript","keywords":["fbp","workflow","flow"],"repo":"noflo/noflo","version":"0.5.9","dependencies":{"bergie/emitter":"*","jashkenas/underscore":"*","noflo/fbp":"*"},"remotes":["https://raw.githubusercontent.com"],"development":{},"license":"MIT","main":"src/lib/NoFlo.js","scripts":["src/lib/Graph.js","src/lib/InternalSocket.js","src/lib/BasePort.js","src/lib/InPort.js","src/lib/OutPort.js","src/lib/Ports.js","src/lib/Port.js","src/lib/ArrayPort.js","src/lib/Component.js","src/lib/AsyncComponent.js","src/lib/LoggingComponent.js","src/lib/ComponentLoader.js","src/lib/NoFlo.js","src/lib/Network.js","src/lib/Platform.js","src/lib/Journal.js","src/lib/Utils.js","src/lib/Helpers.js","src/lib/Streams.js","src/components/Graph.js"],"json":["component.json"],"noflo":{"components":{"Graph":"src/components/Graph.js"}}}');
+module.exports = JSON.parse('{"name":"noflo","description":"Flow-Based Programming environment for JavaScript","keywords":["fbp","workflow","flow"],"repo":"noflo/noflo","version":"0.5.10","dependencies":{"bergie/emitter":"*","jashkenas/underscore":"*","noflo/fbp":"*"},"remotes":["https://raw.githubusercontent.com"],"development":{},"license":"MIT","main":"src/lib/NoFlo.js","scripts":["src/lib/Graph.js","src/lib/InternalSocket.js","src/lib/BasePort.js","src/lib/InPort.js","src/lib/OutPort.js","src/lib/Ports.js","src/lib/Port.js","src/lib/ArrayPort.js","src/lib/Component.js","src/lib/AsyncComponent.js","src/lib/LoggingComponent.js","src/lib/ComponentLoader.js","src/lib/NoFlo.js","src/lib/Network.js","src/lib/Platform.js","src/lib/Journal.js","src/lib/Utils.js","src/lib/Helpers.js","src/lib/Streams.js","src/components/Graph.js"],"json":["component.json"],"noflo":{"components":{"Graph":"src/components/Graph.js"}}}');
 });
 require.register("noflo-noflo/src/lib/Graph.js", function(exports, require, module){
 var EventEmitter, Graph, clone, mergeResolveTheirsNaive, platform, resetGraph,
@@ -6863,6 +6863,7 @@ Network = (function(_super) {
     this.processes = {};
     this.connections = [];
     this.initials = [];
+    this.nextInitials = [];
     this.defaults = [];
     this.graph = graph;
     this.started = false;
@@ -7400,7 +7401,7 @@ Network = (function(_super) {
   };
 
   Network.prototype.addInitial = function(initializer, callback) {
-    var socket, to;
+    var init, socket, to;
     socket = internalSocket.createSocket();
     this.subscribeSocket(socket);
     to = this.getNode(initializer.to.node);
@@ -7420,17 +7421,19 @@ Network = (function(_super) {
     }
     this.connectPort(socket, to, initializer.to.port, initializer.to.index, true);
     this.connections.push(socket);
-    this.initials.push({
+    init = {
       socket: socket,
       data: initializer.from.data
-    });
+    };
+    this.initials.push(init);
+    this.nextInitials.push(init);
     if (callback) {
       return callback();
     }
   };
 
   Network.prototype.removeInitial = function(initializer, callback) {
-    var connection, _i, _len, _ref;
+    var connection, init, _i, _j, _k, _len, _len1, _len2, _ref, _ref1, _ref2;
     _ref = this.connections;
     for (_i = 0, _len = _ref.length; _i < _len; _i++) {
       connection = _ref[_i];
@@ -7442,6 +7445,28 @@ Network = (function(_super) {
       }
       connection.to.process.component.inPorts[connection.to.port].detach(connection);
       this.connections.splice(this.connections.indexOf(connection), 1);
+      _ref1 = this.initials;
+      for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+        init = _ref1[_j];
+        if (!init) {
+          continue;
+        }
+        if (init.socket !== connection) {
+          continue;
+        }
+        this.initials.splice(this.initials.indexOf(init), 1);
+      }
+      _ref2 = this.nextInitials;
+      for (_k = 0, _len2 = _ref2.length; _k < _len2; _k++) {
+        init = _ref2[_k];
+        if (!init) {
+          continue;
+        }
+        if (init.socket !== connection) {
+          continue;
+        }
+        this.nextInitials.splice(this.nextInitials.indexOf(init), 1);
+      }
     }
     if (callback) {
       return callback();
@@ -7478,6 +7503,13 @@ Network = (function(_super) {
     return this.started;
   };
 
+  Network.prototype.isRunning = function() {
+    if (!this.started) {
+      return false;
+    }
+    return this.connectionCount > 0;
+  };
+
   Network.prototype.startComponents = function() {
     var id, process, _ref, _results;
     _ref = this.processes;
@@ -7506,7 +7538,11 @@ Network = (function(_super) {
   };
 
   Network.prototype.start = function() {
+    if (this.started) {
+      this.stop();
+    }
     this.started = true;
+    this.initials = this.nextInitials.slice(0);
     this.startComponents();
     this.sendInitials();
     return this.sendDefaults();
@@ -8781,6 +8817,9 @@ exports.WirePattern = function(component, config, proc) {
           }
           if (outPorts.length === 1) {
             outs = outs[outPorts[0]];
+          }
+          if (!groups) {
+            groups = [];
           }
           whenDoneGroups = groups.slice(0);
           whenDone = function(err) {
@@ -11505,6 +11544,7 @@ ListenChange = (function(_super) {
 
   function ListenChange() {
     this.change = __bind(this.change, this);
+    this.elements = [];
     this.inPorts = {
       element: new noflo.Port('object')
     };
@@ -11519,7 +11559,18 @@ ListenChange = (function(_super) {
   }
 
   ListenChange.prototype.subscribe = function(element) {
-    return element.addEventListener('change', this.change, false);
+    element.addEventListener('change', this.change, false);
+    return this.elements.push(element);
+  };
+
+  ListenChange.prototype.unsubscribe = function() {
+    var element, _i, _len, _ref;
+    _ref = this.elements;
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      element = _ref[_i];
+      element.removeEventListener('change', this.change, false);
+    }
+    return this.elements = [];
   };
 
   ListenChange.prototype.change = function(event) {
@@ -11530,6 +11581,10 @@ ListenChange = (function(_super) {
     event.stopPropagation();
     this.outPorts.value.send(event.target.value);
     return this.outPorts.value.disconnect();
+  };
+
+  ListenChange.prototype.shutdown = function() {
+    return this.unsubscribe();
   };
 
   return ListenChange;
@@ -11949,6 +12004,7 @@ ListenMouse = (function(_super) {
   function ListenMouse() {
     this.dblclick = __bind(this.dblclick, this);
     this.click = __bind(this.click, this);
+    this.elements = [];
     this.inPorts = {
       element: new noflo.Port('object')
     };
@@ -11965,7 +12021,19 @@ ListenMouse = (function(_super) {
 
   ListenMouse.prototype.subscribe = function(element) {
     element.addEventListener('click', this.click, false);
-    return element.addEventListener('dblclick', this.dblclick, false);
+    element.addEventListener('dblclick', this.dblclick, false);
+    return this.elements.push(element);
+  };
+
+  ListenMouse.prototype.unsubscribe = function() {
+    var element, _i, _len, _ref;
+    _ref = this.elements;
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      element = _ref[_i];
+      element.removeEventListener('click', this.click, false);
+      element.removeEventListener('dblclick', this.dblclick, false);
+    }
+    return this.elements = [];
   };
 
   ListenMouse.prototype.click = function(event) {
@@ -12005,6 +12073,10 @@ ListenMouse = (function(_super) {
         return _this.timeout = null;
       };
     })(this), 200);
+  };
+
+  ListenMouse.prototype.shutdown = function() {
+    return this.unsubscribe();
   };
 
   return ListenMouse;
@@ -12472,6 +12544,7 @@ ListenTouch = (function(_super) {
     this.touchend = __bind(this.touchend, this);
     this.touchmove = __bind(this.touchmove, this);
     this.touchstart = __bind(this.touchstart, this);
+    this.elements = [];
     this.inPorts = {
       element: new noflo.Port('object')
     };
@@ -12491,7 +12564,20 @@ ListenTouch = (function(_super) {
   ListenTouch.prototype.subscribe = function(element) {
     element.addEventListener('touchstart', this.touchstart, false);
     element.addEventListener('touchmove', this.touchmove, false);
-    return element.addEventListener('touchend', this.touchend, false);
+    element.addEventListener('touchend', this.touchend, false);
+    return this.elements.push(element);
+  };
+
+  ListenTouch.prototype.unsubscribe = function() {
+    var element, _i, _len, _ref;
+    _ref = this.elements;
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      element = _ref[_i];
+      element.removeEventListener('touchstart', this.touchstart, false);
+      element.removeEventListener('touchmove', this.touchmove, false);
+      element.removeEventListener('touchend', this.touchend, false);
+    }
+    return this.elements = [];
   };
 
   ListenTouch.prototype.touchstart = function(event) {
@@ -12562,6 +12648,10 @@ ListenTouch = (function(_super) {
       this.outPorts.end.endGroup();
     }
     return this.outPorts.end.disconnect();
+  };
+
+  ListenTouch.prototype.shutdown = function() {
+    return this.unsubscribe();
   };
 
   return ListenTouch;
@@ -13390,6 +13480,10 @@ NetworkProtocol = (function(_super) {
     return this.transport.send('network', topic, payload, context);
   };
 
+  NetworkProtocol.prototype.sendAll = function(topic, payload) {
+    return this.transport.sendAll('network', topic, payload);
+  };
+
   NetworkProtocol.prototype.receive = function(topic, payload, context) {
     var graph;
     if (topic !== 'list') {
@@ -13400,7 +13494,7 @@ NetworkProtocol = (function(_super) {
     }
     switch (topic) {
       case 'start':
-        return this.initNetwork(graph, payload, context);
+        return this.startNetwork(graph, payload, context);
       case 'stop':
         return this.stopNetwork(graph, payload, context);
       case 'edges':
@@ -13489,26 +13583,39 @@ NetworkProtocol = (function(_super) {
   NetworkProtocol.prototype.subscribeNetwork = function(network, payload, context) {
     network.on('start', (function(_this) {
       return function(event) {
-        return _this.send('started', {
+        return _this.sendAll('started', {
           time: event.start,
-          graph: payload.graph
+          graph: payload.graph,
+          running: true,
+          started: network.isStarted()
+        }, context);
+      };
+    })(this));
+    network.on('end', (function(_this) {
+      return function(event) {
+        return _this.sendAll('stopped', {
+          time: new Date,
+          uptime: event.uptime,
+          graph: payload.graph,
+          running: false,
+          started: network.isStarted()
         }, context);
       };
     })(this));
     network.on('icon', (function(_this) {
       return function(event) {
         event.graph = payload.graph;
-        return _this.send('icon', event, context);
+        return _this.sendAll('icon', event, context);
       };
     })(this));
     network.on('connect', (function(_this) {
       return function(event) {
-        return _this.send('connect', prepareSocketEvent(event, payload), context);
+        return _this.sendAll('connect', prepareSocketEvent(event, payload), context);
       };
     })(this));
     network.on('begingroup', (function(_this) {
       return function(event) {
-        return _this.send('begingroup', prepareSocketEvent(event, payload), context);
+        return _this.sendAll('begingroup', prepareSocketEvent(event, payload), context);
       };
     })(this));
     network.on('data', (function(_this) {
@@ -13516,26 +13623,17 @@ NetworkProtocol = (function(_super) {
         if (!_this.eventFiltered(payload.graph, event)) {
           return;
         }
-        return _this.send('data', prepareSocketEvent(event, payload), context);
+        return _this.sendAll('data', prepareSocketEvent(event, payload), context);
       };
     })(this));
     network.on('endgroup', (function(_this) {
       return function(event) {
-        return _this.send('endgroup', prepareSocketEvent(event, payload), context);
+        return _this.sendAll('endgroup', prepareSocketEvent(event, payload), context);
       };
     })(this));
     network.on('disconnect', (function(_this) {
       return function(event) {
-        return _this.send('disconnect', prepareSocketEvent(event, payload), context);
-      };
-    })(this));
-    network.on('end', (function(_this) {
-      return function(event) {
-        return _this.send('stopped', {
-          time: new Date,
-          uptime: event.uptime,
-          graph: payload.graph
-        }, context);
+        return _this.sendAll('disconnect', prepareSocketEvent(event, payload), context);
       };
     })(this));
     return network.on('process-error', (function(_this) {
@@ -13548,13 +13646,23 @@ NetworkProtocol = (function(_super) {
             error += "\n" + bt[i];
           }
         }
-        return _this.send('processerror', {
+        return _this.sendAll('processerror', {
           id: event.id,
           error: error,
           graph: payload.graph
         }, context);
       };
     })(this));
+  };
+
+  NetworkProtocol.prototype.startNetwork = function(graph, payload, context) {
+    var network;
+    network = this.networks[payload.graph];
+    if (network) {
+      return network.network.start();
+    } else {
+      return this.initNetwork(graph, payload, context);
+    }
   };
 
   NetworkProtocol.prototype.stopNetwork = function(graph, payload, context) {
@@ -13578,14 +13686,20 @@ NetworkProtocol = (function(_super) {
   };
 
   NetworkProtocol.prototype.getStatus = function(graph, payload, context) {
-    var network;
+    var isRunning, network;
     network = this.networks[payload.graph];
     if (!network) {
       return;
     }
+    if (network.network.isRunning) {
+      isRunning = network.network.isRunning();
+    } else {
+      isRunning = network.network.isStarted() && network.network.connectionCount > 0;
+    }
     return this.send('status', {
       graph: payload.graph,
-      running: network.network.isStarted()
+      running: isRunning,
+      started: network.network.isStarted()
     }, context);
   };
 
@@ -13597,9 +13711,11 @@ module.exports = NetworkProtocol;
 
 });
 require.register("noflo-noflo-runtime-base/src/protocol/Component.js", function(exports, require, module){
-var ComponentProtocol, noflo;
+var ComponentProtocol, noflo, _;
 
 noflo = require('noflo');
+
+_ = require('underscore');
 
 ComponentProtocol = (function() {
   ComponentProtocol.prototype.loaders = {};
@@ -13752,12 +13868,13 @@ ComponentProtocol = (function() {
   };
 
   ComponentProtocol.prototype.registerGraph = function(id, graph, context) {
-    var loader, send;
-    send = (function(_this) {
+    var loader, send, sender;
+    sender = (function(_this) {
       return function() {
         return _this.processComponent(loader, id, context);
       };
     })(this);
+    send = _.debounce(sender, 10);
     loader = this.getLoader(graph.baseDir);
     loader.listComponents((function(_this) {
       return function(components) {
@@ -14267,7 +14384,7 @@ require.register("broofa-node-uuid/uuid.js", function(exports, require, module){
 
 });
 require.register("noflo-noflo-runtime-webrtc/component.json", function(exports, require, module){
-module.exports = JSON.parse('{"name":"noflo-runtime-webrtc","description":"WebRTC runtime transport support for NoFlo","keywords":["fbp","webrtc","flowhub","noflo"],"repo":"noflo/noflo-runtime-webrtc","version":"0.0.4","dependencies":{"noflo/noflo-runtime-base":"*","bergie/emitter":"*","broofa/node-uuid":"*","noflo/noflo":"*","noflo/noflo-core":"*"},"remotes":["https://raw.githubusercontent.com"],"development":{},"license":"MIT","main":"runtime/network.js","scripts":["runtime/network.js"],"json":["component.json"]}');
+module.exports = JSON.parse('{"name":"noflo-runtime-webrtc","description":"WebRTC runtime transport support for NoFlo","keywords":["fbp","webrtc","flowhub","noflo"],"repo":"noflo/noflo-runtime-webrtc","version":"0.0.5","dependencies":{"noflo/noflo-runtime-base":"*","bergie/emitter":"*","broofa/node-uuid":"*","noflo/noflo":"*","noflo/noflo-core":"*"},"remotes":["https://raw.githubusercontent.com"],"development":{},"license":"MIT","main":"runtime/network.js","scripts":["runtime/network.js"],"json":["component.json"]}');
 });
 require.register("noflo-noflo-runtime-webrtc/runtime/network.js", function(exports, require, module){
 var Base, WebRTCRuntime, isBrowser, uuid,
@@ -14289,9 +14406,61 @@ if (isBrowser()) {
 WebRTCRuntime = (function(_super) {
   __extends(WebRTCRuntime, _super);
 
-  function WebRTCRuntime(options) {
+  function WebRTCRuntime(address, options, dontstart) {
     WebRTCRuntime.__super__.constructor.call(this, options);
+    this.channels = [];
+    if (address && address.indexOf('#') !== -1) {
+      this.signaller = address.split('#')[0];
+      this.id = address.split('#')[1];
+    } else {
+      this.signaller = 'https://api.flowhub.io';
+      this.id = address;
+    }
+    if (!this.id) {
+      this.id = uuid.v4();
+    }
+    if (!dontstart) {
+      this.start();
+    }
   }
+
+  WebRTCRuntime.prototype.start = function() {
+    var peer, rtcOptions;
+    rtcOptions = {
+      room: this.id,
+      debug: true,
+      channels: {
+        chat: true
+      },
+      signaller: this.signaller,
+      capture: false,
+      constraints: false,
+      expectedLocalStreams: 0
+    };
+    peer = RTC(rtcOptions);
+    peer.on('channel:opened:chat', (function(_this) {
+      return function(id, dc) {
+        _this.channels.push(dc);
+        return dc.onmessage = function(data) {
+          var context, msg;
+          context = {
+            channel: dc
+          };
+          msg = JSON.parse(data.data);
+          return _this.receive(msg.protocol, msg.command, msg.payload, context);
+        };
+      };
+    })(this));
+    return peer.on('channel:closed:chat', (function(_this) {
+      return function(id, dc) {
+        dc.onmessage = null;
+        if (runtime.connections.indexOf(connection) === -1) {
+          return;
+        }
+        return runtime.connections.splice(runtime.connections.indexOf(connection), 1);
+      };
+    })(this));
+  };
 
   WebRTCRuntime.prototype.send = function(protocol, topic, payload, context) {
     var m, msg;
@@ -14307,44 +14476,30 @@ WebRTCRuntime = (function(_super) {
     return context.channel.send(m);
   };
 
+  WebRTCRuntime.prototype.sendAll = function(protocol, topic, payload) {
+    var channel, m, msg, _i, _len, _ref, _results;
+    msg = {
+      protocol: protocol,
+      command: topic,
+      payload: payload
+    };
+    m = JSON.stringify(msg);
+    _ref = this.channels;
+    _results = [];
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      channel = _ref[_i];
+      _results.push(channel.send(m));
+    }
+    return _results;
+  };
+
   return WebRTCRuntime;
 
 })(Base);
 
-module.exports = function(id, options) {
-  var channels, peer, rtcOptions, runtime;
-  runtime = new WebRTCRuntime(options);
-  if (!id) {
-    id = uuid.v4();
-  }
-  runtime.id = id;
-  rtcOptions = {
-    room: id,
-    debug: true,
-    channels: {
-      chat: true
-    },
-    signaller: '//switchboard.rtc.io',
-    capture: false,
-    constraints: false,
-    expectedLocalStreams: 0
-  };
-  channels = [];
-  peer = RTC(rtcOptions);
-  peer.on('channel:opened:chat', function(id, dc) {
-    channels.push(dc);
-    return dc.onmessage = function(data) {
-      var context, msg;
-      context = {
-        channel: dc
-      };
-      msg = JSON.parse(data.data);
-      return runtime.receive(msg.protocol, msg.command, msg.payload, context);
-    };
-  });
-  peer.on('channel:closed:chat', function(id, dc) {
-    return dc.onmessage = null;
-  });
+module.exports = function(address, options, dontstart) {
+  var runtime;
+  runtime = new WebRTCRuntime(address, options, dontstart);
   return runtime;
 };
 
@@ -14406,7 +14561,7 @@ module.exports = {
     "flow"
   ],
   "repo": "noflo/noflo",
-  "version": "0.5.9",
+  "version": "0.5.10",
   "dependencies": {
     "bergie/emitter": "*",
     "jashkenas/underscore": "*",
@@ -14639,7 +14794,7 @@ module.exports = {
     "noflo"
   ],
   "repo": "noflo/noflo-runtime-webrtc",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "dependencies": {
     "noflo/noflo-runtime-base": "*",
     "bergie/emitter": "*",
@@ -14886,6 +15041,9 @@ require.alias("noflo-fbp/lib/fbp.js", "noflo-fbp/index.js");
 require.alias("noflo-noflo/src/lib/NoFlo.js", "noflo-noflo/index.js");
 require.alias("bergie-emitter/index.js", "noflo-noflo-runtime-base/deps/events/index.js");
 
+require.alias("jashkenas-underscore/underscore.js", "noflo-noflo-runtime-base/deps/underscore/underscore.js");
+require.alias("jashkenas-underscore/underscore.js", "noflo-noflo-runtime-base/deps/underscore/index.js");
+require.alias("jashkenas-underscore/underscore.js", "jashkenas-underscore/index.js");
 require.alias("noflo-noflo-runtime-base/src/Base.js", "noflo-noflo-runtime-base/index.js");
 require.alias("bergie-emitter/index.js", "noflo-noflo-runtime-webrtc/deps/events/index.js");
 
