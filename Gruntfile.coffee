@@ -26,6 +26,10 @@ module.exports = ->
       build:
         options:
           debug: true
+          ide: 'http://localhost:8000/index.html'
+          signalserver: 'http://flowhub-rtc.herokuapp.com' # FIXME: use
+#          signalserver: 'http://localhost:8888'
+#          signalserver: 'http://api.flowhub.io'
         files:
           'browser/noflo-browser-app.js': ['component.json']
 
