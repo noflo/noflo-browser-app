@@ -538,15 +538,13 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
 
   // Return the first value which passes a truth test. Aliased as `detect`.
   _.find = _.detect = function(obj, predicate, context) {
-    var result;
-    predicate = cb(predicate, context);
-    _.some(obj, function(value, index, list) {
-      if (predicate(value, index, list)) {
-        result = value;
-        return true;
-      }
-    });
-    return result;
+    var key;
+    if (obj.length === +obj.length) {
+      key = _.findIndex(obj, predicate, context);
+    } else {
+      key = _.findKey(obj, predicate, context);
+    }
+    if (key !== void 0 && key !== -1) return obj[key];
   };
 
   // Return all the elements that pass a truth test.
@@ -988,6 +986,16 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
     return -1;
   };
 
+  // Returns the first index on an array-like that passes a predicate test
+  _.findIndex = function(array, predicate, context) {
+    predicate = cb(predicate, context);
+    var length = array != null ? array.length : 0;
+    for (var i = 0; i < length; i++) {
+      if (predicate(array[i], i, array)) return i;
+    }
+    return -1;
+  };
+
   // Generate an integer Array containing an arithmetic progression. A port of
   // the native Python `range()` function. See
   // [the Python documentation](http://docs.python.org/library/functions.html#range).
@@ -1301,6 +1309,16 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
       }
     }
     return obj;
+  };
+
+  // Returns the first key on an object that passes a predicate test
+  _.findKey = function(obj, predicate, context) {
+    predicate = cb(predicate, context);
+    var keys = _.keys(obj), key;
+    for (var i = 0, length = keys.length; i < length; i++) {
+      key = keys[i];
+      if (predicate(obj[key], key, obj)) return key;
+    }
   };
 
   // Return a copy of the object only containing the whitelisted properties.
@@ -8639,6 +8657,9 @@ exports.WirePattern = function(component, config, proc) {
     needPortGroups = collectGroups instanceof Array && collectGroups.indexOf(port) !== -1;
     return inPort.process = function(event, payload, index) {
       var data, foundGroup, g, groupLength, groups, grp, i, key, obj, out, outs, postpone, postponedToQ, reqId, requiredLength, resume, task, tmp, whenDone, whenDoneGroups, _len5, _len6, _len7, _len8, _n, _o, _p, _q, _r, _ref2, _ref3, _ref4, _s;
+      if (!component.groupBuffers[port]) {
+        component.groupBuffers[port] = [];
+      }
       switch (event) {
         case 'begingroup':
           component.groupBuffers[port].push(payload);
@@ -9455,13 +9476,7 @@ Graph = (function(_super) {
       this.network.graph.checkTransactionEnd();
       return exported["public"];
     }
-    if (Object.keys(this.network.graph.inports).length > 0) {
-      return false;
-    }
-    if (port.isAttached()) {
-      return false;
-    }
-    return (nodeName + '.' + portName).toLowerCase();
+    return false;
   };
 
   Graph.prototype.isExportedOutport = function(port, nodeName, portName) {
@@ -9486,13 +9501,7 @@ Graph = (function(_super) {
       this.network.graph.checkTransactionEnd();
       return exported["public"];
     }
-    if (Object.keys(this.network.graph.outports).length > 0) {
-      return false;
-    }
-    if (port.isAttached()) {
-      return false;
-    }
-    return (nodeName + '.' + portName).toLowerCase();
+    return false;
   };
 
   Graph.prototype.setToReady = function() {
@@ -12955,6 +12964,10 @@ GraphProtocol = (function() {
     return this.transport.send('graph', topic, payload, context);
   };
 
+  GraphProtocol.prototype.sendAll = function(topic, payload) {
+    return this.transport.sendAll('graph', topic, payload);
+  };
+
   GraphProtocol.prototype.receive = function(topic, payload, context) {
     var graph;
     if (topic !== 'clear') {
@@ -13064,7 +13077,8 @@ GraphProtocol = (function() {
     } else {
       this.transport.component.registerGraph(fullName, graph, context);
     }
-    return this.graphs[payload.id] = graph;
+    this.graphs[payload.id] = graph;
+    return this.sendAll('clear', payload, context);
   };
 
   GraphProtocol.prototype.registerGraph = function(id, graph) {
@@ -13079,18 +13093,18 @@ GraphProtocol = (function() {
     graph.on('addNode', (function(_this) {
       return function(node) {
         node.graph = id;
-        return _this.send('addnode', node, context);
+        return _this.sendAll('addnode', node, context);
       };
     })(this));
     graph.on('removeNode', (function(_this) {
       return function(node) {
         node.graph = id;
-        return _this.send('removenode', node, context);
+        return _this.sendAll('removenode', node, context);
       };
     })(this));
     graph.on('renameNode', (function(_this) {
       return function(oldId, newId) {
-        return _this.send('renamenode', {
+        return _this.sendAll('renamenode', {
           from: oldId,
           to: newId,
           graph: id
@@ -13099,7 +13113,7 @@ GraphProtocol = (function() {
     })(this));
     graph.on('changeNode', (function(_this) {
       return function(node, before) {
-        return _this.send('changenode', {
+        return _this.sendAll('changenode', {
           id: node.id,
           metadata: node.metadata,
           graph: id
@@ -13121,7 +13135,7 @@ GraphProtocol = (function() {
           metadata: edge.metadata,
           graph: id
         };
-        return _this.send('addedge', edgeData, context);
+        return _this.sendAll('addedge', edgeData, context);
       };
     })(this));
     graph.on('removeEdge', (function(_this) {
@@ -13133,7 +13147,7 @@ GraphProtocol = (function() {
           metadata: edge.metadata,
           graph: id
         };
-        return _this.send('removeedge', edgeData, context);
+        return _this.sendAll('removeedge', edgeData, context);
       };
     })(this));
     graph.on('changeEdge', (function(_this) {
@@ -13145,7 +13159,7 @@ GraphProtocol = (function() {
           metadata: edge.metadata,
           graph: id
         };
-        return _this.send('changeedge', edgeData, context);
+        return _this.sendAll('changeedge', edgeData, context);
       };
     })(this));
     graph.on('addInitial', (function(_this) {
@@ -13157,7 +13171,7 @@ GraphProtocol = (function() {
           metadata: iip.metadata,
           graph: id
         };
-        return _this.send('addinitial', iipData, context);
+        return _this.sendAll('addinitial', iipData, context);
       };
     })(this));
     graph.on('removeInitial', (function(_this) {
@@ -13169,7 +13183,7 @@ GraphProtocol = (function() {
           metadata: iip.metadata,
           graph: id
         };
-        return _this.send('removeinitial', iipData, context);
+        return _this.sendAll('removeinitial', iipData, context);
       };
     })(this));
     graph.on('addGroup', (function(_this) {
@@ -13181,7 +13195,7 @@ GraphProtocol = (function() {
           metadata: group.metadata,
           graph: id
         };
-        return _this.send('addgroup', groupData, context);
+        return _this.sendAll('addgroup', groupData, context);
       };
     })(this));
     graph.on('removeGroup', (function(_this) {
@@ -13191,7 +13205,7 @@ GraphProtocol = (function() {
           name: group.name,
           graph: id
         };
-        return _this.send('removegroup', groupData, context);
+        return _this.sendAll('removegroup', groupData, context);
       };
     })(this));
     graph.on('renameGroup', (function(_this) {
@@ -13202,7 +13216,7 @@ GraphProtocol = (function() {
           to: newName,
           graph: id
         };
-        return _this.send('renamegroup', groupData, context);
+        return _this.sendAll('renamegroup', groupData, context);
       };
     })(this));
     return graph.on('changeGroup', (function(_this) {
@@ -13213,7 +13227,7 @@ GraphProtocol = (function() {
           metadata: group.metadata,
           graph: id
         };
-        return _this.send('changegroup', groupData, context);
+        return _this.sendAll('changegroup', groupData, context);
       };
     })(this));
   };
@@ -13226,7 +13240,7 @@ GraphProtocol = (function() {
     return graph.addNode(node.id, node.component, node.metadata);
   };
 
-  GraphProtocol.prototype.removeNode = function(graph, payload) {
+  GraphProtocol.prototype.removeNode = function(graph, payload, context) {
     if (!payload.id) {
       this.send('error', new Error('No ID supplied'), context);
       return;
@@ -13933,9 +13947,11 @@ RuntimeProtocol = (function() {
   }
 
   RuntimeProtocol.prototype.send = function(topic, payload, context) {
-    if (context !== null) {
-      return this.transport.send('runtime', topic, payload, context);
-    }
+    return this.transport.send('runtime', topic, payload, context);
+  };
+
+  RuntimeProtocol.prototype.sendAll = function(topic, payload) {
+    return this.transport.sendAll('runtime', topic, payload);
   };
 
   RuntimeProtocol.prototype.receive = function(topic, payload, context) {
@@ -14006,7 +14022,7 @@ RuntimeProtocol = (function() {
         });
       }
     }
-    return this.send('ports', {
+    return this.sendAll('ports', {
       graph: name,
       inPorts: inports,
       outPorts: outports
@@ -14074,13 +14090,12 @@ RuntimeProtocol = (function() {
       sendFunc = (function(_this) {
         return function(event) {
           return function(payload) {
-            var _base;
-            return typeof (_base = _this.transport).sendAll === "function" ? _base.sendAll('runtime', 'packet', {
+            return _this.sendAll('runtime', 'packet', {
               port: pub,
               event: event,
               graph: graphName,
               payload: payload
-            }) : void 0;
+            });
           };
         };
       })(this);
