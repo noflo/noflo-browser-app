@@ -3,6 +3,7 @@
 /components/*/
 /spec/*.js
 /spec/*.xml
+/spec/runner.html
 flowhub.json
 *~
 gh-pages/
