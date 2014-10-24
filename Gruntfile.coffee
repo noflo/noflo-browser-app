@@ -1,5 +1,8 @@
 module.exports = ->
   # Project configuration
+  pkg = @file.readJSON 'package.json'
+  repo = pkg.repository.url.replace 'git://', 'https://'+process.env.GH_TOKEN+'@'
+
   @initConfig
     pkg: @file.readJSON 'package.json'
 
@@ -31,7 +34,7 @@ module.exports = ->
 #          signalserver: 'http://localhost:8888'
 #          signalserver: 'http://api.flowhub.io'
         files:
-          'browser/noflo-browser-app.js': ['component.json']
+          "browser/<%=pkg.name%>.js": ['component.json']
 
     # JavaScript minification for the browser
     uglify:
@@ -39,7 +42,7 @@ module.exports = ->
         report: 'min'
       noflo:
         files:
-          './browser/noflo-browser-app.min.js': ['./browser/noflo-browser-app.js']
+          "./browser/<%=pkg.name%>.min.js": ["./browser/<%=pkg.name%>.js"]
 
     # Automated recompilation and testing when developing
     watch:
@@ -72,11 +75,11 @@ module.exports = ->
         base: 'browser'
         clone: 'gh-pages'
         message: 'Updating'
-        repo: 'https://' + process.env.GH_TOKEN + '@github.com/noflo/noflo-browser-app.git'
+        repo: repo
         user:
           name: 'NoFlo bot'
           email: 'bot@noflo.org'
-        silent: true
+        silent: false
       src: '**/*'
 
   # Grunt plugins used for building
