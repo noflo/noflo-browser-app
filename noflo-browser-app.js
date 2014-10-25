@@ -14424,6 +14424,7 @@ WebRTCRuntime = (function(_super) {
   function WebRTCRuntime(address, options, dontstart) {
     WebRTCRuntime.__super__.constructor.call(this, options);
     this.channels = [];
+    this.debug = false;
     if (address && address.indexOf('#') !== -1) {
       this.signaller = address.split('#')[0];
       this.id = address.split('#')[1];
@@ -14462,6 +14463,9 @@ WebRTCRuntime = (function(_super) {
             channel: dc
           };
           msg = JSON.parse(data.data);
+          if (_this.debug) {
+            console.log('message', msg);
+          }
           return _this.receive(msg.protocol, msg.command, msg.payload, context);
         };
       };
@@ -14469,10 +14473,10 @@ WebRTCRuntime = (function(_super) {
     return peer.on('channel:closed:chat', (function(_this) {
       return function(id, dc) {
         dc.onmessage = null;
-        if (runtime.connections.indexOf(connection) === -1) {
+        if (_this.channels.indexOf(dc) === -1) {
           return;
         }
-        return runtime.connections.splice(runtime.connections.indexOf(connection), 1);
+        return _this.channels.splice(_this.channels.indexOf(dc), 1);
       };
     })(this));
   };
@@ -14488,22 +14492,32 @@ WebRTCRuntime = (function(_super) {
       payload: payload
     };
     m = JSON.stringify(msg);
+    if (this.debug) {
+      console.log('send', msg);
+    }
     return context.channel.send(m);
   };
 
   WebRTCRuntime.prototype.sendAll = function(protocol, topic, payload) {
-    var channel, m, msg, _i, _len, _ref, _results;
+    var channel, e, m, msg, _i, _len, _ref, _results;
     msg = {
       protocol: protocol,
       command: topic,
       payload: payload
     };
     m = JSON.stringify(msg);
+    if (this.debug) {
+      console.log('sendAll', msg);
+    }
     _ref = this.channels;
     _results = [];
     for (_i = 0, _len = _ref.length; _i < _len; _i++) {
       channel = _ref[_i];
-      _results.push(channel.send(m));
+      try {
+        _results.push(channel.send(m));
+      } catch (_error) {
+        e = _error;
+      }
     }
     return _results;
   };

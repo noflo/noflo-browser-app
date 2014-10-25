@@ -13,19 +13,46 @@
     <script>
       var noflo = require('noflo');
       var runtime = require('noflo-runtime-webrtc');
+
+      function getParameterByName(name) {
+        name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
+        var regex = new RegExp("[\\?&]" + name + "=([^&#]*)");
+        var results = regex.exec(location.search);
+        return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+      }
+
       noflo.graph.loadJSON(require('noflo-browser-app/graphs/main.json'), function (graph) {
         graph.baseDir = '/noflo-browser-app';
+
+        var queryProtocol = getParameterByName('fbp_protocol');
+        var queryAddress = getParameterByName('fbp_address');
+        var queryNoLoad = getParameterByName('fbp_noload');
+
         var runtimeOptions = {
-            defaultGraph: graph,
             baseDir: graph.baseDir
         };
-        var rt = runtime(null, runtimeOptions, true);
-        rt.signaller = 'http://flowhub-rtc.herokuapp.com';
+        if (queryNoLoad.toLowerCase() !== 'true') {
+            runtimeOptions.defaultGraph = graph;
+        };
+
+        var rt = null;
+        if (queryProtocol == 'webrtc' && queryAddress) {
+            // ID to use specified from outside, normally by Flowhub IDE
+            var rt = runtime(queryAddress, runtimeOptions, true);
+        } else {
+            // Generate new ID
+            var rt = runtime(null, runtimeOptions, true);
+            rt.signaller = 'http://flowhub-rtc.herokuapp.com';
+        }
+
+        rt.debug = true; // TEMP
+
         rt.start();
         var ide = 'http://localhost:8000/index.html';
         var debugUrl = ide+'#runtime/endpoint?'+encodeURIComponent('protocol=webrtc&address='+rt.signaller+'#'+rt.id);
         console.log('Debug URL', debugUrl);
         document.getElementById('flowhub_debug_url').href = debugUrl;
+
         rt.network.on('addnetwork', function () {
             console.log('main is running!');
         });
