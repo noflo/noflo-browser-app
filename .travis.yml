@@ -1,10 +1,10 @@
 language: node_js
 node_js:
-- 0.1
+- 0.10
 before_script:
 - npm install -g grunt-cli
 after_success:
 - grunt gh-pages
 env:
   global:
-    secure: gfD86/uZJ0QI1V9tM+W0jvn3XFm2xaW51Bi4tnwOvw2WDlcwQu8RVfm73OTYH2pOctNYyypOvccywIVoYAapxEhXv+J/2Pj+0NVJ5w/0vftxsE5idJIqCp9U2CmNb/Uc8K387T3cDNICORncjqfCyph7oXPoeZ+b7EK4lpEvTtc=
+  - secure: QDAFlaHxMFfpDzT2rhRnUHlKsUk+Bs1fRseeLbxGSZvkCSGUiIDZHvRnfUQ+lUVihHOgYVSxMghkv624FJXWBebApubSYyCyZ269Zs1pKbzpkeUc1+lS9NQ6b0mgEC1VZBtmM3BYYr+IGeP1akERYA98JPcZEyq8af2gCTW4Ufo=
