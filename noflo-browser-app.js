@@ -7445,6 +7445,9 @@ Network = (function(_super) {
     };
     this.initials.push(init);
     this.nextInitials.push(init);
+    if (this.isStarted()) {
+      this.sendInitials();
+    }
     if (callback) {
       return callback();
     }
@@ -13585,10 +13588,7 @@ NetworkProtocol = (function(_super) {
         _this.emit('addnetwork', network, _this.networks);
         _this.subscribeNetwork(network, payload, context);
         return network.connect(function() {
-          network.start();
-          return graph.on('addInitial', function() {
-            return network.sendInitials();
-          });
+          return network.start();
         });
       };
     })(this), true);
