@@ -1218,9 +1218,7 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
       if (--times > 0) {
         memo = func.apply(this, arguments);
       }
-      if (times <= 1) {
-        func = null;
-      }
+      if (times <= 1) func = null;
       return memo;
     };
   };
