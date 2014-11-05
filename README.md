@@ -5,7 +5,7 @@
 Usage
 -------
 
-* Fork the project on githubs
+* Fork this project on GitHub
 * Import in Flowhub
 * Make changes, syncronize in Flowhub
 
