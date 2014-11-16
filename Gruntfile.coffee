@@ -29,7 +29,6 @@ module.exports = ->
       build:
         options:
           debug: true
-          ide: 'http://localhost:8000/index.html'
         files:
           "browser/<%=pkg.name%>.js": ['component.json']
 
