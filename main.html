@@ -48,7 +48,7 @@
         rt.debug = true; // TEMP
 
         rt.start();
-        var ide = 'http://localhost:8000/index.html';
+        var ide = 'https://app.flowhub.io';
         var debugUrl = ide+'#runtime/endpoint?'+encodeURIComponent('protocol=webrtc&address='+rt.signaller+'#'+rt.id);
         console.log('Debug URL', debugUrl);
         document.getElementById('flowhub_debug_url').href = debugUrl;
