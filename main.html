@@ -23,8 +23,8 @@
         return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
       }
 
-      noflo.graph.loadJSON(require('cbase-workshop/graphs/main.json'), function (graph) {
-        graph.baseDir = '/cbase-workshop';
+      noflo.graph.loadJSON(require('noflo-browser-app/graphs/main.json'), function (graph) {
+        graph.baseDir = '/noflo-browser-app';
 
         var queryProtocol = getParameterByName('fbp_protocol');
         var queryAddress = getParameterByName('fbp_address');
