@@ -9,9 +9,8 @@
   </head>
   <body>
     <a id='flowhub_debug_url'>Debug in Flowhub</a>
-    <p id="output">Default</p>
-<button id="button1">Write ello</button>
-<button id="button2">Start timer</button>
+    <button id='button'>Go!</button>
+<p id='message'></p>
     <script>
       var noflo = require('noflo');
       var webrtcRuntime = require('noflo-runtime-webrtc');
@@ -24,8 +23,8 @@
         return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
       }
 
-      noflo.graph.loadJSON(require('noflo-browser-app/graphs/main.json'), function (graph) {
-        graph.baseDir = '/noflo-browser-app';
+      noflo.graph.loadJSON(require('cbase-workshop/graphs/main.json'), function (graph) {
+        graph.baseDir = '/cbase-workshop';
 
         var queryProtocol = getParameterByName('fbp_protocol');
         var queryAddress = getParameterByName('fbp_address');
