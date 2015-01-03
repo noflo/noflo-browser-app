@@ -398,7 +398,11 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
   var
     nativeIsArray      = Array.isArray,
     nativeKeys         = Object.keys,
-    nativeBind         = FuncProto.bind;
+    nativeBind         = FuncProto.bind,
+    nativeCreate       = Object.create;
+
+  // Reusable constructor function for prototype setting.
+  var Ctor = function(){};
 
   // Create a safe reference to the Underscore object for use below.
   var _ = function(obj) {
@@ -459,6 +463,34 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
     return cb(value, context, Infinity);
   };
 
+  // An internal function for creating assigner functions.
+  var createAssigner = function(keysFunc) {
+    return function(obj) {
+      var length = arguments.length;
+      if (length < 2 || obj == null) return obj;
+      for (var index = 0; index < length; index++) {
+        var source = arguments[index],
+            keys = keysFunc(source),
+            l = keys.length;
+        for (var i = 0; i < l; i++) {
+          var key = keys[i];
+          obj[key] = source[key];
+        }
+      }
+      return obj;
+    };
+  };
+
+  // An internal function for creating a new object that inherits from another.
+  var baseCreate = function(prototype) {
+    if (!_.isObject(prototype)) return {};
+    if (nativeCreate) return nativeCreate(prototype);
+    Ctor.prototype = prototype;
+    var result = new Ctor;
+    Ctor.prototype = null;
+    return result;
+  };
+
   // Collection Functions
   // --------------------
 
@@ -497,8 +529,6 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
     return results;
   };
 
-  var reduceError = 'Reduce of empty array with no initial value';
-
   // **Reduce** builds up a single result from a list of values, aka `inject`,
   // or `foldl`.
   _.reduce = _.foldl = _.inject = function(obj, iteratee, memo, context) {
@@ -508,7 +538,6 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
         length = (keys || obj).length,
         index = 0, currentKey;
     if (arguments.length < 3) {
-      if (!length) throw new TypeError(reduceError);
       memo = obj[keys ? keys[index++] : index++];
     }
     for (; index < length; index++) {
@@ -526,14 +555,38 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
         index = (keys || obj).length,
         currentKey;
     if (arguments.length < 3) {
-      if (!index) throw new TypeError(reduceError);
       memo = obj[keys ? keys[--index] : --index];
     }
-    while (index--) {
+    while (index-- > 0) {
       currentKey = keys ? keys[index] : index;
       memo = iteratee(memo, obj[currentKey], currentKey, obj);
     }
     return memo;
+  };
+
+  // **Transform** is an alternative to reduce that transforms `obj` to a new
+  // `accumulator` object.
+  _.transform = function(obj, iteratee, accumulator, context) {
+    if (accumulator == null) {
+      if (_.isArray(obj)) {
+        accumulator = [];
+      } else if (_.isObject(obj)) {
+        var Ctor = obj.constructor;
+        accumulator = baseCreate(typeof Ctor == 'function' && Ctor.prototype);
+      } else {
+        accumulator = {};
+      }
+    }
+    if (obj == null) return accumulator;
+    iteratee = optimizeCb(iteratee, context, 4);
+    var keys = obj.length !== +obj.length && _.keys(obj),
+      length = (keys || obj).length,
+      index, currentKey;
+    for (index = 0; index < length; index++) {
+      currentKey = keys ? keys[index] : index;
+      if (iteratee(accumulator, obj[currentKey], currentKey, obj) === false) break;
+    }
+    return accumulator;
   };
 
   // Return the first value which passes a truth test. Aliased as `detect`.
@@ -595,11 +648,11 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
   };
 
   // Determine if the array or object contains a given value (using `===`).
-  // Aliased as `include`.
-  _.contains = _.include = function(obj, target) {
+  // Aliased as `includes` and `include`.
+  _.contains = _.includes = _.include = function(obj, target, fromIndex) {
     if (obj == null) return false;
     if (obj.length !== +obj.length) obj = _.values(obj);
-    return _.indexOf(obj, target) >= 0;
+    return _.indexOf(obj, target, typeof fromIndex == 'number' && fromIndex) >= 0;
   };
 
   // Invoke a method (with arguments) on every item in a collection.
@@ -713,13 +766,7 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
         criteria: iteratee(value, index, list)
       };
     }).sort(function(left, right) {
-      var a = left.criteria;
-      var b = right.criteria;
-      if (a !== b) {
-        if (a > b || a === void 0) return 1;
-        if (a < b || b === void 0) return -1;
-      }
-      return left.index - right.index;
+      return _.comparator(left.criteria, right.criteria) || left.index - right.index;
     }), 'value');
   };
 
@@ -754,19 +801,6 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
   _.countBy = group(function(result, value, key) {
     if (_.has(result, key)) result[key]++; else result[key] = 1;
   });
-
-  // Use a comparator function to figure out the smallest index at which
-  // an object should be inserted so as to maintain order. Uses binary search.
-  _.sortedIndex = function(array, obj, iteratee, context) {
-    iteratee = cb(iteratee, context, 1);
-    var value = iteratee(obj);
-    var low = 0, high = array.length;
-    while (low < high) {
-      var mid = low + high >>> 1;
-      if (iteratee(array[mid]) < value) low = mid + 1; else high = mid;
-    }
-    return low;
-  };
 
   // Safely create a real, live array from anything iterable.
   _.toArray = function(obj) {
@@ -996,6 +1030,19 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
     return -1;
   };
 
+  // Use a comparator function to figure out the smallest index at which
+  // an object should be inserted so as to maintain order. Uses binary search.
+  _.sortedIndex = function(array, obj, iteratee, context) {
+    iteratee = cb(iteratee, context, 1);
+    var value = iteratee(obj);
+    var low = 0, high = array.length;
+    while (low < high) {
+      var mid = Math.floor((low + high) / 2);
+      if (_.comparator(iteratee(array[mid]), value) < 0) low = mid + 1; else high = mid;
+    }
+    return low;
+  };
+
   // Generate an integer Array containing an arithmetic progression. A port of
   // the native Python `range()` function. See
   // [the Python documentation](http://docs.python.org/library/functions.html#range).
@@ -1019,16 +1066,11 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
   // Function (ahem) Functions
   // ------------------
 
-  // Reusable constructor function for prototype setting.
-  var Ctor = function(){};
-
   // Determines whether to execute a function as a constructor
   // or a normal function with the provided arguments
   var executeBound = function(sourceFunc, boundFunc, context, callingContext, args) {
     if (!(callingContext instanceof boundFunc)) return sourceFunc.apply(context, args);
-    Ctor.prototype = sourceFunc.prototype;
-    var self = new Ctor;
-    Ctor.prototype = null;
+    var self = baseCreate(sourceFunc.prototype);
     var result = sourceFunc.apply(self, args);
     if (_.isObject(result)) return result;
     return self;
@@ -1039,7 +1081,7 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
   // available.
   _.bind = function(func, context) {
     if (nativeBind && func.bind === nativeBind) return nativeBind.apply(func, slice.call(arguments, 1));
-    if (!_.isFunction(func)) throw TypeError('Bind must be called on a function');
+    if (!_.isFunction(func)) throw new TypeError('Bind must be called on a function');
     var args = slice.call(arguments, 2);
     return function bound() {
       return executeBound(func, bound, context, this, args.concat(slice.call(arguments)));
@@ -1098,9 +1140,7 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
 
   // Defers a function, scheduling it to run after the current call stack has
   // cleared.
-  _.defer = function(func) {
-    return _.delay.apply(_, [func, 1].concat(slice.call(arguments, 1)));
-  };
+  _.defer = _.partial(_.delay, _, 1);
 
   // Returns a function, that, when invoked, will only be triggered at most once
   // during a given window of time. Normally, the throttled function will run
@@ -1202,7 +1242,7 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
     };
   };
 
-  // Returns a function that will only be executed after being called N times.
+  // Returns a function that will only be executed on and after the Nth call.
   _.after = function(times, func) {
     return function() {
       if (--times < 1) {
@@ -1211,7 +1251,7 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
     };
   };
 
-  // Returns a function that will only be executed before being called N times.
+  // Returns a function that will only be executed up to (but not including) the Nth call.
   _.before = function(times, func) {
     var memo;
     return function() {
@@ -1231,7 +1271,7 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
   // ----------------
 
   // Keys in IE < 9 that won't be iterated by `for key in ...` and thus missed.
-  var hasEnumBug = !({toString: null}).propertyIsEnumerable('toString');
+  var hasEnumBug = !{toString: null}.propertyIsEnumerable('toString');
   var nonEnumerableProps = ['constructor', 'valueOf', 'isPrototypeOf', 'toString',
                       'propertyIsEnumerable', 'hasOwnProperty', 'toLocaleString'];
 
@@ -1313,17 +1353,11 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
   };
 
   // Extend a given object with all the properties in passed-in object(s).
-  _.extend = function(obj) {
-    if (!_.isObject(obj)) return obj;
-    var source, prop;
-    for (var i = 1, length = arguments.length; i < length; i++) {
-      source = arguments[i];
-      for (prop in source) {
-        obj[prop] = source[prop];
-      }
-    }
-    return obj;
-  };
+  _.extend = createAssigner(_.keysIn);
+
+  // Assigns a given object with all the own properties in the passed-in object(s)
+  // (https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object/assign)
+  _.assign = createAssigner(_.keys);
 
   // Returns the first key on an object that passes a predicate test
   _.findKey = function(obj, predicate, context) {
@@ -1379,6 +1413,15 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
       }
     }
     return obj;
+  };
+
+  // Creates an object that inherits from the given prototype object.
+  // If additional properties are provided then they will be added to the
+  // created object.
+  _.create = function(prototype, props) {
+    var result = baseCreate(prototype);
+    if (props) _.assign(result, props);
+    return result;
   };
 
   // Create a (shallow-cloned) duplicate of an object.
@@ -1463,7 +1506,7 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
       if (length !== b.length) return false;
       // Deep compare the contents, ignoring non-numeric properties.
       while (length--) {
-        if (!(eq(a[length], b[length], aStack, bStack))) return false;
+        if (!eq(a[length], b[length], aStack, bStack)) return false;
       }
     } else {
       // Deep compare objects.
@@ -1529,8 +1572,9 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
     };
   }
 
-  // Optimize `isFunction` if appropriate. Work around an IE 11 bug.
-  if (typeof /./ !== 'function') {
+  // Optimize `isFunction` if appropriate. Work around an IE 11 bug (#1621).
+  // Work around a Safari 8 bug (#1929)
+  if (typeof /./ != 'function' && typeof Int8Array != 'object') {
     _.isFunction = function(obj) {
       return typeof obj == 'function' || false;
     };
@@ -1596,8 +1640,8 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
       return obj == null ? void 0 : obj[key];
     };
   };
-  
-  // Generates a function for a given object that returns a given property (including those of ancestors) 
+
+  // Generates a function for a given object that returns a given property (including those of ancestors)
   _.propertyOf = function(obj) {
     return obj == null ? function(){} : function(key) {
       return obj[key];
@@ -1616,6 +1660,18 @@ require.register("jashkenas-underscore/underscore.js", function(exports, require
       }
       return true;
     };
+  };
+
+  // Default internal comparator for determining whether a is greater (1),
+  // equal (0) or less than (-1) some object b
+  _.comparator = function(a, b) {
+    if (a === b) return 0;
+    var isAComparable = a >= a, isBComparable = b >= b;
+    if (isAComparable || isBComparable) {
+      if (isAComparable && !isBComparable) return -1;
+      if (isBComparable && !isAComparable) return 1;
+    }
+    return a > b ? 1 : (b > a) ? -1 : 0;
   };
 
   // Run a function **n** times.
@@ -14047,8 +14103,12 @@ RuntimeProtocol = (function() {
   };
 
   RuntimeProtocol.prototype.getMainNetwork = function() {
-    var network;
-    network = this.transport.network.networks['echoNoflo'];
+    var graphName, network;
+    if (!this.mainGraph) {
+      return null;
+    }
+    graphName = this.mainGraph.name || this.mainGraph.properties.id;
+    network = this.transport.network.networks[graphName];
     if (!network) {
       return null;
     }
@@ -15042,6 +15102,10 @@ function Request(method, url) {
       err.original = e;
     }
 
+    if (res) {
+      self.emit('response', res);
+    }
+
     self.callback(err, res);
   });
 }
@@ -15271,7 +15335,7 @@ Request.prototype.query = function(val){
  */
 
 Request.prototype.field = function(name, val){
-  if (!this._formData) this._formData = new FormData();
+  if (!this._formData) this._formData = new root.FormData();
   this._formData.append(name, val);
   return this;
 };
@@ -15294,7 +15358,7 @@ Request.prototype.field = function(name, val){
  */
 
 Request.prototype.attach = function(field, file, filename){
-  if (!this._formData) this._formData = new FormData();
+  if (!this._formData) this._formData = new root.FormData();
   this._formData.append(field, file, filename);
   return this;
 };
@@ -15390,9 +15454,7 @@ Request.prototype.send = function(data){
 Request.prototype.callback = function(err, res){
   var fn = this._callback;
   this.clearTimeout();
-  if (2 == fn.length) return fn(err, res);
-  if (err) return this.emit('error', err);
-  fn(res);
+  fn(err, res);
 };
 
 /**
@@ -15458,7 +15520,13 @@ Request.prototype.end = function(fn){
   // state change
   xhr.onreadystatechange = function(){
     if (4 != xhr.readyState) return;
-    if (0 == xhr.status) {
+
+    // In IE9, reads to any property (e.g. status) off of an aborted XHR will
+    // result in the error "Could not complete the operation due to error c00c023f"
+    var status;
+    try { status = xhr.status } catch(e) { status = 0; }
+
+    if (0 == status) {
       if (self.aborted) return self.timeoutError();
       return self.crossDomainError();
     }
@@ -15466,11 +15534,17 @@ Request.prototype.end = function(fn){
   };
 
   // progress
-  if (xhr.upload) {
-    xhr.upload.onprogress = function(e){
-      e.percent = e.loaded / e.total * 100;
-      self.emit('progress', e);
-    };
+  try {
+    if (xhr.upload) {
+      xhr.upload.onprogress = function(e){
+        e.percent = e.loaded / e.total * 100;
+        self.emit('progress', e);
+      };
+    }
+  } catch(e) {
+    // Accessing xhr.upload fails in IE from a web worker, so just pretend it doesn't exist.
+    // Reported here:
+    // https://connect.microsoft.com/IE/feedback/details/837245/xmlhttprequest-upload-throws-invalid-argument-when-used-from-web-worker-context
   }
 
   // timeout
@@ -17335,7 +17409,7 @@ var cmdStreamBuildGraph = function(currentNodeId, buffer, index, componentLib, g
                                                  connection.tgt.port).id;
             } catch (err) {
                 throw "Could not connect: " + srcNode + " " + connection.src.port +
-                        " -> " + connection.tgt.port + " "+ tgtNode;
+                        " -> " + connection.tgt.port + " "+ tgtNode + " : " + err.toString();
             }
 
             if (tgtPort !== undefined && srcPort !== undefined) {
@@ -17351,10 +17425,11 @@ var cmdStreamBuildGraph = function(currentNodeId, buffer, index, componentLib, g
             var tgtNode = connection.tgt.process;
             var tgtPort = undefined;
             try {
-                tgtPort = componentLib.inputPort(graph.processes[tgtNode].component, connection.tgt.port).id;
+                var component = graph.processes[tgtNode].component;
+                tgtPort = componentLib.inputPort(component, connection.tgt.port).id;
             } catch (err) {
                 throw "Could not attach IIP: '" + connection.data.toString() + "' -> "
-                        + tgtPort + " " + tgtNode;
+                        + tgtPort + " " + tgtNode + ' : ' + err;
             }
 
             index += writeCmd(buffer, index, dataLiteralToCommand(connection.data, nodeMap[tgtNode].id, tgtPort));
@@ -17655,7 +17730,51 @@ function ComponentLibrary(definition, basedir) {
             }
         }
     }
+    this.addComponent = function(componentName, def, filename) {
+        // Normalization. Should be applied to all components eventually
+        def.filename = filename;
+        if (typeof def.id === 'undefined') {
+            def.id = findHighestId(self.definition.components)+1;
+        }
+        if (typeof def.inports !== 'undefined') {
+            def.inPorts = def.inports;
+            def.inports = null;
+        }
+        if (typeof def.inPorts === 'undefined') {
+            def.inPorts = { 'in': { id:0 } };
+        }
+        if (typeof def.outports !== 'undefined') {
+            def.outPorts = def.outports;
+            def.outports = null;
+        }
+        if (typeof def.outPorts === 'undefined') {
+            def.outPorts = { 'out': { id:0 } };
+        }
+        var checkPortIdsAssigned = function(ports) {
+            var names = Object.keys(ports);
+            if (names.length > 0 && typeof ports[names[0]].id === 'undefined') {
+                names.forEach(function(name, idx) {
+                    var port = ports[name];
+                    port.id = idx;
+                });
+            }
+        }
+        checkPortIdsAssigned(def.inPorts);
+        checkPortIdsAssigned(def.outPorts);
+        self.definition.components[componentName] = def;
+    }
 }
+
+var findHighestId = function(components) {
+    var highest = 0;
+    Object.keys(components).forEach(function (name) {
+        var comp = components[name];
+        if (!comp['.skip'] && comp.id > highest) {
+            highest = comp.id
+        }
+    });
+    return highest;
+};
 
 
 module.exports = {
@@ -17673,6 +17792,7 @@ require.register("jonnor-microflo/lib/generate.js", function(exports, require, m
 var util = require("./util");
 var cmdFormat = require("./commandformat");
 var commandstream = require("./commandstream");
+var definition = require("./definition");
 
 if (util.isBrowser()) {
 
@@ -17723,6 +17843,30 @@ var cmdStreamToC = function(cmdStream, annotation) {
     return cCode;
 }
 
+var generateConstInt = function(prefix, iconsts) {
+    if (Object.keys(iconsts).length === 0) {
+        return ""
+    }
+    var indent = "\n const MicroFlo::ComponentId ";
+    
+    var out = "#ifndef COMPONENTLIB_IDS_H\n#define COMPONENTLIB_IDS_H\n\n";
+    out += "// Component Id constants\n";
+    out += "namespace {";
+    
+    var a = [];
+    for (var e in iconsts) {
+        if (!iconsts.hasOwnProperty(e)) {
+            continue;
+        }
+        a.push((indent + prefix + e + ((iconsts[e].id !== undefined) ? " = " + iconsts[e].id : "")));
+    }
+    out += a.join(";");
+    out += ";\n};\n\n";
+    out += "#endif // COMPONENTLIB_IDS_H\n";
+    
+    return out;
+}
+
 var generateEnum = function(name, prefix, enums) {
     if (Object.keys(enums).length === 0) {
         return ""
@@ -17744,7 +17888,8 @@ var generateEnum = function(name, prefix, enums) {
 }
 
 var generateComponentPortDefinitions = function(componentLib) {
-    var out = "\n";
+    var out = "#ifndef COMPONENTLIB_PORTS_H\n#define COMPONENTLIB_PORTS_H\n\n";
+
     for (var name in componentLib.getComponents()) {
         out += "\n" + "namespace " + name + "Ports {\n";
         out += "struct InPorts {\n"
@@ -17756,11 +17901,13 @@ var generateComponentPortDefinitions = function(componentLib) {
         out += "};"
         out += "\n}\n";
     }
+    
+    out += "\n#endif // COMPONENTLIB_PORTS_H\n";
     return out;
 }
 
-var generateComponentFactory = function(componentLib) {
-    var out = "Component *Component::create(ComponentId id) {"
+var generateComponentFactory = function(componentLib, methodName) {
+    var out = "// Component factory functionality\nComponent *"+methodName+"(MicroFlo::ComponentId id) {"
     var indent = "\n    ";
     out += indent + "Component *c;";
     out += indent + "switch (id) {";
@@ -17772,7 +17919,7 @@ var generateComponentFactory = function(componentLib) {
             var t1 = componentLib.inputPortById(name, 0).ctype;
             instantiator = "new PureFunctionComponent2<"+name+","+t0+","+t1+">";
         }
-        out += indent + "case Id" + name + ": c = " + instantiator + "; c->componentId=id; return c;"
+        out += indent + "case Id" + name + ": c = " + instantiator + "; c->setComponentId(id); return c;"
     }
     out += indent + "default: return NULL;"
     out += indent + "}"
@@ -17783,14 +17930,60 @@ var generateComponentFactory = function(componentLib) {
 var generateComponentIncludes = function(componentLib) {
     var out = ""
     for (var name in componentLib.getComponents()) {
-        out += '#include "components/'+ name+'.hpp"\n';
+        var comp = componentLib.getComponent(name);
+        // TODO: build up list of files, eliminate duplicates
+        if (!comp.filename) {
+            out += '#include "core/components/'+ name+'.hpp"\n';
+        }
     }
     return out;
 }
 
+var macroSafeName = function(str) {
+    return str.split('.').join('_').split('-').join('_');
+}
+
+var guardHead = function(filename) {
+    var guardname = '_'+macroSafeName(filename);
+    return "#ifndef "+guardname+'\n'
+        +  '#define '+guardname+'\n'
+}
+var guardTail = function(filename) {
+    var guardname = '_'+macroSafeName(filename);
+    return "#endif //"+guardname+'\n'
+}
+
 var extractId = function(map,key) { return map[key].id };
 
+var updateComponentLibDefinitions = function(componentLib, baseDir, factoryMethodName) {
+    var sourceOutput;
 
+    fs.writeFileSync(baseDir + "/componentlib-ids.h",
+                     generateConstInt("Id",componentLib.getComponents(true, true)));
+    fs.writeFileSync(baseDir + "/componentlib-ports.h",
+                     generateComponentPortDefinitions(componentLib));
+
+    sourceOutput = generateComponentIncludes(componentLib);
+    sourceOutput += "\n\n";
+    sourceOutput += generateComponentFactory(componentLib, factoryMethodName);
+
+    fs.writeFileSync(baseDir + "/componentlib-source.hpp", sourceOutput);
+}
+
+var updateDefinitions = function(componentLib, baseDir) {
+    updateComponentLibDefinitions(componentLib, baseDir, "createComponent");
+
+    fs.writeFileSync(baseDir + "/commandformat-gen.h",
+                 generateEnum("GraphCmd", "GraphCmd", cmdFormat.commands) +
+                 "\n" + generateEnum("Msg", "Msg", cmdFormat.packetTypes) +
+                 "\n" + generateEnum("DebugLevel", "DebugLevel", cmdFormat.debugLevels) +
+                 "\n" + generateEnum("DebugId", "Debug", cmdFormat.debugPoints));
+    fs.writeFileSync(baseDir + "/io-gen.h",
+                 "\n" + generateEnum("IoType", "IoType", cmdFormat.ioTypes));
+}
+
+/*
+<<<<<<< HEAD
 var updateDefinitions = function(componentLib, baseDir) {
     fs.writeFileSync(baseDir + "/components-gen.h",
                      generateEnum("ComponentId", "Id", componentLib.getComponents(true, true)));
@@ -17801,15 +17994,12 @@ var updateDefinitions = function(componentLib, baseDir) {
     fs.writeFileSync(baseDir + "/components-gen-bottom.hpp",
                      generateComponentFactory(componentLib));
     fs.writeFileSync(baseDir + "/components-gen-top.hpp",
-                     generateComponentPortDefinitions(componentLib));
-    fs.writeFileSync(baseDir + "/commandformat-gen.h",
-                 generateEnum("GraphCmd", "GraphCmd", cmdFormat.commands) +
-                 "\n" + generateEnum("Msg", "Msg", cmdFormat.packetTypes) +
-                 "\n" + generateEnum("DebugLevel", "DebugLevel", cmdFormat.debugLevels) +
-                 "\n" + generateEnum("DebugId", "Debug", cmdFormat.debugPoints));
-    fs.writeFileSync(baseDir + "/io-gen.h",
-                 "\n" + generateEnum("IoType", "IoType", cmdFormat.ioTypes));
-}
+                     guardHead("components-gen-top.hpp")+
+                     generateComponentPortDefinitions(componentLib)+
+                     guardTail("components-gen-top.hpp")
+    );
+=======
+*/
 
 var generateOutput = function(componentLib, inputFile, outputFile, target) {
     var outputBase, outputDir;
@@ -17821,8 +18011,7 @@ var generateOutput = function(componentLib, inputFile, outputFile, target) {
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir);
     }
-    var runtime = require("./runtime"); // FIXME: circular deps
-    return runtime.loadFile(inputFile, function(err, def) {
+    return definition.loadFile(inputFile, function(err, def) {
       var data;
       if (err) {
         throw err;
@@ -17858,6 +18047,7 @@ var generateOutput = function(componentLib, inputFile, outputFile, target) {
 
 module.exports = {
     updateDefinitions: updateDefinitions,
+    updateComponentLibDefinitions: updateComponentLibDefinitions,
     cmdStreamToCDefinition: cmdStreamToCDefinition,
     generateEnum: generateEnum,
     generateOutput: generateOutput
@@ -41052,7 +41242,7 @@ run();
 //# sourceMappingURL=microflo-runtime.html.map
 });
 require.register("jonnor-microflo/component.json", function(exports, require, module){
-module.exports = JSON.parse('{"name":"microflo","description":"MicroFlo host functionality for browser","author":"Jon Nordby <jononor@gmail.com>","repo":"jonnor/microflo","version":"0.3.13","keywords":["FBP"],"dependencies":{"component/emitter":"*","the-grid/flowhub-registry":"*","noflo/noflo":"*","noflo/fbp":"*","jonnor/buffer":"*"},"main":"lib/microflo.js","scripts":["lib/commandformat.js","lib/commandstream.js","lib/componentlib.js","lib/generate.js","lib/microflo.js","lib/serial.js","lib/simulator.js","lib/util.js","build/emscripten/microflo-runtime.js","lib/devicecommunication.js","lib/flash.js","lib/runtime.js"],"json":["component.json","microflo/components.json","microflo/commandformat.json"],"remotes":["https://raw.githubusercontent.com"],"styles":[],"files":[]}');
+module.exports = JSON.parse('{"name":"microflo","description":"MicroFlo host functionality for browser","author":"Jon Nordby <jononor@gmail.com>","repo":"microflo/microflo","version":"0.3.14","keywords":["FBP"],"dependencies":{"component/emitter":"*","the-grid/flowhub-registry":"*","noflo/noflo":"*","noflo/fbp":"*","jonnor/buffer":"*"},"main":"lib/microflo.js","scripts":["lib/commandformat.js","lib/commandstream.js","lib/componentlib.js","lib/generate.js","lib/microflo.js","lib/serial.js","lib/simulator.js","lib/util.js","build/emscripten/microflo-runtime.js","lib/devicecommunication.js","lib/flash.js","lib/definition.js","lib/runtime.js"],"json":["component.json","microflo/components.json","microflo/commandformat.json"],"remotes":["https://raw.githubusercontent.com"],"styles":[],"files":[]}');
 });
 require.register("jonnor-microflo/microflo/components.json", function(exports, require, module){
 module.exports = JSON.parse('{"set":{"id":0,"name":"microflo-core","description":"Core components"},"defaultInPorts":{"in":{"id":0}},"defaultOutPorts":{"out":{"id":0}},"components":{"Invalid":{"id":0,".skip":true},"PwmWrite":{"id":1,"description":"Set duty cycle [0-100%] of PWM pin","inPorts":{"dutycycle":{"id":0},"pin":{"id":1}}},"AnalogRead":{"id":2,"description":"Read analog value from pin. Value=[0-1023]","inPorts":{"trigger":{"id":0},"pin":{"id":1}}},"Forward":{"id":3,"description":"Forward a packet from input to output"},"Count":{"id":4,"description":"Count upwards from 0, with step 1","inPorts":{"in":{"id":0},"reset":{"id":1}}},"DigitalWrite":{"id":5,"description":"Write a boolean value to pin","inPorts":{"in":{"id":0},"pin":{"id":1}}},"DigitalRead":{"id":6,"description":"Read a boolean value from pin. Value is read on @trigger","inPorts":{"trigger":{"id":0},"pin":{"id":1},"pullup":{"id":2}}},"Timer":{"id":7,"description":"Emit a packet every @interval milliseconds","inPorts":{"interval":{"id":0},"reset":{"id":2}}},"SerialIn":{"id":8,"description":"Emit packets read from serial port (0). Warning: may interfere with MicroFlo UI usage"},"SerialOut":{"id":9,"description":"Write input packets to serial port (0). Warning: may interfere with MicroFlo UI usage"},"InvertBoolean":{"id":10,"description":"Invert incoming boolean value. Logical equivalent: NOT"},"ToggleBoolean":{"id":11,"description":"Invert output packet everytime an input packet arrives. Output defaults to false","inPorts":{"in":{"id":0},"reset":{"id":1}}},"HysteresisLatch":{"id":12,"description":"Emit true if @in < @highthreshold, false if @in < @lowthreshold, else keep previous state","inPorts":{"in":{"id":0},"lowthreshold":{"id":1},"highthreshold":{"id":2}}},"ReadDallasTemperature":{"id":13,"description":"Read temperature from DS1820 thermometer. Note: requires building MicroFlo from source tree.","inPorts":{"trigger":{"id":0},"pin":{"id":1},"address":{"id":2}}},"Route":{"id":14,"description":"Pass packets to @out from input port number @port","inPorts":{"port":{"id":0},"in1":{"id":1},"in2":{"id":2},"in3":{"id":3},"in4":{"id":4},"in5":{"id":5},"in6":{"id":6},"in7":{"id":7},"in8":{"id":8},"in9":{"id":9}}},"Delimit":{"id":15,".skip":true},"BreakBeforeMake":{"id":16,"description":"Break-before-make switch logic. Monitor ports must be connected to form a feedback loop from what outputs are connected to","inPorts":{"in":{"id":0},"monitor1":{"id":1},"monitor2":{"id":2}},"outPorts":{"out1":{"id":0},"out2":{"id":1}}},"MapLinear":{"id":17,"description":"Map the integer @in from range [@inmin,@inmax] to [@outmin,@outmax]","inPorts":{"in":{"id":0},"inmin":{"id":1},"inmax":{"id":2},"outmin":{"id":3},"outmax":{"id":4}}},"MonitorPin":{"id":18,"description":"Emit a boolean value each time a pin changes state. Note: only pin 2/3 on Arduino Uno/Nano supported.","inPorts":{"pin":{"id":0}}},"Split":{"id":19,"description":"Emit incoming packets on all output ports","outPorts":{"out1":{"id":0},"out2":{"id":1},"out3":{"id":2},"out4":{"id":3},"out5":{"id":4},"out6":{"id":5},"out7":{"id":6},"out8":{"id":7},"out9":{"id":8}}},"Gate":{"id":20,"description":"Pass packets from @in to @out only if @enable is true","inPorts":{"in":{"id":0},"enable":{"id":1}}},"BooleanOr":{"id":21,"description":"Emits true if either @a OR @b is true, else false","type":"pure2","inPorts":{"a":{"id":0,"ctype":"bool"},"b":{"id":1,"ctype":"bool"}}},"BooleanAnd":{"id":22,"description":"Emits true if @a AND @b is true, else false","type":"pure2","inPorts":{"a":{"id":0,"ctype":"bool"},"b":{"id":1,"ctype":"bool"}}},"ReadCapacitivePin":{"id":23,"description":"Emits true if measured capacitance (in iterations) on @pin exceeds @threshold","inPorts":{"trigger":{"id":0},"pin":{"id":1},"threshold":{"id":2}}},"NumberEquals":{"id":24,"description":"Emits true if @a EQUALS @b is true, else false","type":"pure2","inPorts":{"a":{"id":0,"ctype":"long"},"b":{"id":1,"ctype":"long"}}},"Min":{"id":25,"description":"Emits minimum value of @in and @threshold","type":"pure2","inPorts":{"in":{"id":0,"ctype":"long"},"threshold":{"id":1,"ctype":"long"}}},"Max":{"id":26,"description":"Emits maximum value of @in and @threshold","type":"pure2","inPorts":{"in":{"id":0,"ctype":"long"},"threshold":{"id":1,"ctype":"long"}}},"Constrain":{"id":27,"description":"Constraina a number within a the range [@lower,@upper]","inPorts":{"in":{"id":0},"lower":{"id":1},"upper":{"id":2}}},"LedMatrixMax":{"id":28,"description":"Set characters on MAX7219 display","inPorts":{"in":{"id":0},"pincs":{"id":1},"pindin":{"id":2},"pinclk":{"id":3}}},"LedChainNeoPixel":{"id":29,"description":"Display colors on RGB strips/chains using WS2812 controller","inPorts":{"in":{"id":0},"pin":{"id":1},"pixels":{"id":2},"show":{"id":3}},"outPorts":{"ready":{"id":0},"pixelset":{"id":1}}},"PseudoPwmWrite":{"id":30,"description":"Software PWM. Will be jittery and slow, but can be used on any GPIO pin/platform","inPorts":{"period":{"id":0},"ontime":{"id":1},"dutycycle":{"id":2},"pin":{"id":3}}},"LedChainWS":{"id":31,"description":"Display colors on RGB strips/chains using WS2812 controller","inPorts":{"in":{"id":0},"pindata":{"id":1},"pinclk":{"id":2},"pixels":{"id":3},"show":{"id":4},"hwspi":{"id":5}},"outPorts":{"ready":{"id":0},"pixelset":{"id":1}}},"BoolToInt":{"id":32,"description":"Convert boolean input to integer. true->1, false->0"},"ArduinoUno":{"id":50,"description":"Convenient definition of pins available on Arduino Uno","outPorts":{"pin0":{"id":0},"pin1":{"id":1},"pin2":{"id":2},"pin3":{"id":3},"pin4":{"id":4},"pin5":{"id":5},"pin6":{"id":6},"pin7":{"id":7},"pin8":{"id":8},"pin9":{"id":9},"pin10":{"id":10},"pin11":{"id":11},"pin12":{"id":12},"pin13":{"id":13},"pina0":{"id":14},"pina1":{"id":15},"pina2":{"id":16},"pina3":{"id":17},"pina4":{"id":18},"pina5":{"id":19}},"inPorts":{}},"ATUSBKEY":{"id":51,"description":"Convenient definition of pins available on Atmel AT90USBKEY","outPorts":{"porta0":{"id":0},"porta1":{"id":1},"porta2":{"id":2},"porta3":{"id":3},"porta4":{"id":4},"porta5":{"id":5},"porta6":{"id":6},"porta7":{"id":7},"portb0":{"id":8},"portb1":{"id":9},"portb2":{"id":10},"portb3":{"id":11},"portb4":{"id":12},"portb5":{"id":13},"portb6":{"id":14},"portb7":{"id":15},"portc0":{"id":16},"portc1":{"id":17},"portc2":{"id":18},"portc3":{"id":19},"portc4":{"id":20},"portc5":{"id":21},"portc6":{"id":22},"portc7":{"id":23},"portd0":{"id":24},"portd1":{"id":25},"portd2":{"id":26},"portd3":{"id":27},"portd4":{"id":28},"portd5":{"id":29},"portd6":{"id":30},"portd7":{"id":31},"porte0":{"id":32},"porte1":{"id":33},"porte2":{"id":34},"porte3":{"id":35},"porte4":{"id":36},"porte5":{"id":37},"porte6":{"id":38},"porte7":{"id":39},"portf0":{"id":40},"portf1":{"id":41},"portf2":{"id":42},"portf3":{"id":43},"portf4":{"id":44},"portf5":{"id":45},"portf6":{"id":46},"portf7":{"id":47}},"inPorts":{}},"MbedLPC":{"id":52,"description":"Convenient definition of pins available on Mbed LPC1768","outPorts":{"led1":{"id":0},"led2":{"id":1},"led3":{"id":2},"led4":{"id":3},"pin21":{"id":4},"pin22":{"id":5},"pin23":{"id":6},"pin24":{"id":7}},"inPorts":{}},"RaspberryPi":{"id":53,"description":"Convenient definition of pins available for GPIO on Raspberry PI (rev2)","outPorts":{"pin3":{"id":1},"pin5":{"id":2},"pin7":{"id":3}},"inPorts":{}},"TivaC":{"id":54,"description":"Convenient definition of pins available for GPIO Texas Instruments Tiva-C","outPorts":{"pa0":{"id":0},"pa1":{"id":1},"pa2":{"id":2},"pa3":{"id":3},"pa4":{"id":4},"pa5":{"id":5},"pa6":{"id":6},"pa7":{"id":7},"pb0":{"id":8},"pb1":{"id":9},"pb2":{"id":10},"pb3":{"id":11},"pb4":{"id":12},"pb5":{"id":13},"pb6":{"id":14},"pb7":{"id":15},"pc0":{"id":16},"pc1":{"id":17},"pc2":{"id":18},"pc3":{"id":19},"pc4":{"id":20},"pc5":{"id":21},"pc6":{"id":22},"pc7":{"id":23},"pd0":{"id":24},"pd1":{"id":25},"pd2":{"id":26},"pd3":{"id":27},"pd4":{"id":28},"pd5":{"id":29},"pd6":{"id":30},"pd7":{"id":31},"pe0":{"id":32},"pe1":{"id":33},"pe2":{"id":34},"pe3":{"id":35},"pe4":{"id":36},"pe5":{"id":37},"pe6":{"id":38},"pe7":{"id":39},"pf0":{"id":40},"pf1":{"id":41},"pf2":{"id":42},"pf3":{"id":43},"pf4":{"id":44},"pf5":{"id":45},"pf6":{"id":46},"pf7":{"id":47}},"inPorts":{}},"ForwardIf":{"id":55,"description":"Forward a packet only if it contains a Boolean \'true\' value."},"SubGraph":{"id":100,"description":"Not for normal use. Used internally for handling subgraphs","inPorts":{},"outPorts":{}},"_Max":{"id":255,".skip":true}}}');
@@ -41447,8 +41637,69 @@ exports.avrUploader = avrUploader;
 exports.avrUploadHexFile = avrUploadHexFile;
 
 });
+require.register("jonnor-microflo/lib/definition.js", function(exports, require, module){
+var declarec, fbp, fs, loadFile, loadString, path, trim, util;
+
+util = require('./util');
+
+fbp = require('fbp');
+
+if (util.isBrowser()) {
+
+} else {
+  fs = require('fs');
+  path = require('path');
+  declarec = require('declarec');
+}
+
+trim = function(str) {
+  return str.replace(/^\s+|\s+$/g, "");
+};
+
+loadString = function(data, type) {
+  var def, raw;
+  def = null;
+  if (type === ".fbp") {
+    def = fbp.parse(data);
+  } else if (type === '.cpp' || type === '.c' || type === '.h' || type === '.hpp') {
+    raw = declarec.extractDefinition(data, 'microflo_graph', 'c');
+    if (raw.length !== 1) {
+      return console.log('ERROR: only main graph supported when embedded in cpp');
+    }
+    if (raw[0].format === 'fbp') {
+      def = loadString(raw[0].content, '.fbp');
+    }
+    if (raw[0].format === 'json') {
+      def = loadString(raw[0].content, '.json');
+    }
+  } else {
+    def = JSON.parse(data);
+  }
+  return def;
+};
+
+loadFile = function(filename, callback) {
+  return fs.readFile(filename, {
+    encoding: "utf8"
+  }, function(err, data) {
+    var def, type;
+    console.log(filename);
+    if (err) {
+      return callback(err);
+    }
+    type = path.extname(filename);
+    def = loadString(data, type);
+    return callback(null, def);
+  });
+};
+
+exports.loadFile = loadFile;
+
+exports.loadString = loadString;
+
+});
 require.register("jonnor-microflo/lib/runtime.js", function(exports, require, module){
-var EventEmitter, Runtime, c, cmdFormat, commandstream, componentLib, connectionsWithoutEdge, createFlowhubRuntime, deviceResponseToFbpProtocol, devicecommunication, fbp, flowhub, fs, generate, handleComponentCommand, handleGraphCommand, handleMessage, handleNetworkCommand, handleNetworkEdges, handleNetworkStartStop, handleRuntimeCommand, http, listComponents, loadFile, path, portDefAsArray, printReceived, registerFlowhubRuntime, sendExportedPorts, sendPacket, serial, setupFlowhubRuntimePing, setupRuntime, setupWebsocket, uploadGraphFromFile, url, util, uuid, websocket, wsConnectionFormatToFbp,
+var EventEmitter, Runtime, c, cmdFormat, commandstream, componentLib, connectionsWithoutEdge, createFlowhubRuntime, definition, deviceResponseToFbpProtocol, devicecommunication, flowhub, generate, handleComponentCommand, handleGraphCommand, handleMessage, handleNetworkCommand, handleNetworkEdges, handleNetworkStartStop, handleRuntimeCommand, http, listComponents, portDefAsArray, printReceived, registerFlowhubRuntime, sendExportedPorts, sendPacket, serial, setupFlowhubRuntimePing, setupRuntime, setupWebsocket, uploadGraphFromFile, url, util, uuid, websocket, wsConnectionFormatToFbp,
   __hasProp = {}.hasOwnProperty,
   __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
 
@@ -41462,9 +41713,6 @@ if (util.isBrowser()) {
   http = require("http");
   websocket = require("websocket");
   url = require("url");
-  fbp = require("fbp");
-  fs = require("fs");
-  path = require("path");
   uuid = require("node-uuid");
   EventEmitter = require('events').EventEmitter;
 }
@@ -41485,25 +41733,7 @@ serial = require("./serial");
 
 devicecommunication = require("./devicecommunication");
 
-loadFile = function(filename, callback) {
-  return fs.readFile(filename, {
-    encoding: "utf8"
-  }, function(err, data) {
-    var def;
-    console.log(filename);
-    console.log(data);
-    if (err) {
-      return callback(err);
-    }
-    def = null;
-    if ((path.extname(filename)) === ".fbp") {
-      def = fbp.parse(data);
-    } else {
-      def = JSON.parse(data);
-    }
-    return callback(null, def);
-  });
-};
+definition = require('./definition');
 
 portDefAsArray = function(port) {
   var a, name;
@@ -41936,6 +42166,7 @@ registerFlowhubRuntime = function(rt, callback) {
 setupWebsocket = function(runtime, ip, port, callback) {
   var httpServer, wsServer;
   httpServer = http.createServer(function(request, response) {
+    var path;
     path = url.parse(request.url).pathname;
     if (path === "/") {
       response.writeHead(200, {
@@ -41993,7 +42224,7 @@ setupRuntime = function(serialPortToUse, baudRate, port, debugLevel, ip, callbac
 
 uploadGraphFromFile = function(graphPath, serialPortName, baudRate, debugLevel) {
   return serial.openTransport(serialPortName, baudRate, function(err, transport) {
-    return loadFile(graphPath, function(err, graph) {
+    return definition.loadFile(graphPath, function(err, graph) {
       var data;
       data = commandstream.cmdStreamFromGraph(componentLib, graph, debugLevel);
       return uploadGraph(transport, data, graph);
@@ -42037,7 +42268,6 @@ Runtime = (function(_super) {
 })(EventEmitter);
 
 module.exports = {
-  loadFile: loadFile,
   setupRuntime: setupRuntime,
   setupWebsocket: setupWebsocket,
   Runtime: Runtime,
@@ -42110,11 +42340,8 @@ Emitter.prototype.addEventListener = function(event, fn){
  */
 
 Emitter.prototype.once = function(event, fn){
-  var self = this;
-  this._callbacks = this._callbacks || {};
-
   function on() {
-    self.off(event, on);
+    this.off(event, on);
     fn.apply(this, arguments);
   }
 
@@ -45084,13 +45311,19 @@ require.register("noflo-browser-app/index.js", function(exports, require, module
 
 });
 require.register("noflo-browser-app/graphs/main.json", function(exports, require, module){
-module.exports = JSON.parse('{"properties":{"name":"main","environment":{"type":"noflo-browser","content":"<button id=\'button\'>Go!</button>\\n<p id=\'message\'></p>"},"icon":""},"inports":{},"outports":{},"groups":[],"processes":{"dom/GetElement_7amk2":{"component":"dom/GetElement","metadata":{"label":"dom/GetElement","x":252,"y":180,"width":72,"height":72}},"core/Output_cg49":{"component":"core/Output","metadata":{"label":"core/Output","x":432,"y":360,"width":72,"height":72}},"dom/WriteHtml_fpz6j":{"component":"dom/WriteHtml","metadata":{"label":"dom/WriteHtml","x":684,"y":288,"width":72,"height":72}},"dom/GetElement_xvz54":{"component":"dom/GetElement","metadata":{"label":"dom/GetElement","x":252,"y":288,"width":72,"height":72}},"interaction/ListenMouse_1l373":{"component":"interaction/ListenMouse","metadata":{"label":"interaction/ListenMouse","x":432,"y":180,"width":72,"height":72}},"core/Kick_ey1nh":{"component":"core/Kick","metadata":{"label":"core/Kick","x":576,"y":180,"width":72,"height":72}}},"connections":[{"src":{"process":"dom/GetElement_xvz54","port":"element"},"tgt":{"process":"dom/WriteHtml_fpz6j","port":"container"},"metadata":{}},{"src":{"process":"dom/GetElement_7amk2","port":"element"},"tgt":{"process":"interaction/ListenMouse_1l373","port":"element"},"metadata":{"route":0}},{"src":{"process":"dom/GetElement_7amk2","port":"error"},"tgt":{"process":"core/Output_cg49","port":"in"},"metadata":{"route":1}},{"src":{"process":"dom/GetElement_xvz54","port":"error"},"tgt":{"process":"core/Output_cg49","port":"in"},"metadata":{"route":1}},{"src":{"process":"interaction/ListenMouse_1l373","port":"click"},"tgt":{"process":"core/Kick_ey1nh","port":"in"},"metadata":{}},{"src":{"process":"core/Kick_ey1nh","port":"out"},"tgt":{"process":"dom/WriteHtml_fpz6j","port":"html"},"metadata":{}},{"data":"#button","tgt":{"process":"dom/GetElement_7amk2","port":"selector"}},{"data":"#message","tgt":{"process":"dom/GetElement_xvz54","port":"selector"}},{"data":"Hello World!","tgt":{"process":"core/Kick_ey1nh","port":"data"}}]}');
+module.exports = JSON.parse('{"properties":{"name":"main","environment":{"type":"noflo-browser","content":"<p id=\\"output\\">Default</p>\\n<button id=\\"button1\\">Write ello</button>\\n<button id=\\"button2\\">Start timer</button>"},"icon":""},"inports":{},"outports":{},"groups":[{"name":"button","nodes":["core/Kick_4kjo"],"metadata":{"description":""}}],"processes":{"GetOutput":{"component":"dom/GetElement","metadata":{"label":"GetOutput","x":684,"y":144,"width":72,"height":72}},"dom/WriteHtml_u5l6e":{"component":"dom/WriteHtml","metadata":{"label":"dom/WriteHtml","x":828,"y":180,"width":72,"height":72}},"core/Output_uf48d":{"component":"core/Output","metadata":{"label":"core/Output","x":468,"y":180,"width":72,"height":72}},"core/Kick_4kjo":{"component":"core/Kick","metadata":{"label":"core/Kick","x":684,"y":288,"width":72,"height":72}},"core/Drop_wnzzy":{"component":"core/Drop","metadata":{"label":"core/Drop","x":864,"y":-36,"width":72,"height":72}},"packets/Counter_twp65":{"component":"packets/Counter","metadata":{"label":"packets/Counter","x":684,"y":0,"width":72,"height":72}},"core/RunInterval_x0b59":{"component":"core/RunInterval","metadata":{"label":"core/RunInterval","x":540,"y":0,"width":72,"height":72}},"cbase-workshop/ListenClick":{"component":"cbase-workshop/ListenClick","metadata":{"label":"ListenClick","x":360,"y":0,"width":72,"height":72}},"cbase-workshop/ListenClick_fjvd7":{"component":"cbase-workshop/ListenClick","metadata":{"label":"cbase-workshop/ListenClick","x":540,"y":288,"width":72,"height":72}}},"connections":[{"src":{"process":"GetOutput","port":"error"},"tgt":{"process":"core/Output_uf48d","port":"in"},"metadata":{"route":1}},{"src":{"process":"core/Kick_4kjo","port":"out"},"tgt":{"process":"dom/WriteHtml_u5l6e","port":"html"},"metadata":{}},{"src":{"process":"packets/Counter_twp65","port":"count"},"tgt":{"process":"dom/WriteHtml_u5l6e","port":"html"},"metadata":{}},{"src":{"process":"packets/Counter_twp65","port":"out"},"tgt":{"process":"core/Drop_wnzzy","port":"in"},"metadata":{}},{"src":{"process":"GetOutput","port":"element"},"tgt":{"process":"dom/WriteHtml_u5l6e","port":"container"},"metadata":{"route":null}},{"src":{"process":"core/RunInterval_x0b59","port":"out"},"tgt":{"process":"packets/Counter_twp65","port":"in"},"metadata":{}},{"src":{"process":"cbase-workshop/ListenClick","port":"getelement_error"},"tgt":{"process":"core/Output_uf48d","port":"in"},"metadata":{"route":1}},{"src":{"process":"cbase-workshop/ListenClick","port":"listenmouse_click"},"tgt":{"process":"core/RunInterval_x0b59","port":"stop"},"metadata":{"route":null}},{"src":{"process":"cbase-workshop/ListenClick_fjvd7","port":"listenmouse_click"},"tgt":{"process":"core/Kick_4kjo","port":"in"},"metadata":{}},{"data":"#output","tgt":{"process":"GetOutput","port":"selector"}},{"data":"Hello World","tgt":{"process":"core/Kick_4kjo","port":"data"}},{"data":true,"tgt":{"process":"packets/Counter_twp65","port":"immediate"}},{"data":1000,"tgt":{"process":"core/RunInterval_x0b59","port":"interval"}},{"data":"#button1","tgt":{"process":"cbase-workshop/ListenClick","port":"selector"}},{"data":"#button2","tgt":{"process":"cbase-workshop/ListenClick_fjvd7","port":"selector"}}]}');
+});
+require.register("noflo-browser-app/graphs/ListenClick.json", function(exports, require, module){
+module.exports = JSON.parse('{"properties":{"name":"ListenClick","environment":{"type":"all"}},"inports":{"selector":{"process":"dom/GetElement_ufb3a","port":"selector","metadata":{"x":-108,"y":108,"width":72,"height":72}}},"outports":{"getelement_error":{"process":"dom/GetElement_ufb3a","port":"error","metadata":{"x":324,"y":36,"width":72,"height":72}},"listenmouse_click":{"process":"interaction/ListenMouse_g52t0","port":"click","metadata":{"x":324,"y":144,"width":72,"height":72}}},"groups":[],"processes":{"dom/GetElement_ufb3a":{"component":"dom/GetElement","metadata":{"label":"dom/GetElement","x":36,"y":108,"width":72,"height":72}},"interaction/ListenMouse_g52t0":{"component":"interaction/ListenMouse","metadata":{"label":"interaction/ListenMouse","x":180,"y":180,"width":72,"height":72}}},"connections":[{"src":{"process":"dom/GetElement_ufb3a","port":"element"},"tgt":{"process":"interaction/ListenMouse_g52t0","port":"element"},"metadata":{"route":null}}]}');
 });
 require.register("noflo-browser-app/graphs/main.json", function(exports, require, module){
-module.exports = JSON.parse('{"properties":{"name":"main","environment":{"type":"noflo-browser","content":"<button id=\'button\'>Go!</button>\\n<p id=\'message\'></p>"},"icon":""},"inports":{},"outports":{},"groups":[],"processes":{"dom/GetElement_7amk2":{"component":"dom/GetElement","metadata":{"label":"dom/GetElement","x":252,"y":180,"width":72,"height":72}},"core/Output_cg49":{"component":"core/Output","metadata":{"label":"core/Output","x":432,"y":360,"width":72,"height":72}},"dom/WriteHtml_fpz6j":{"component":"dom/WriteHtml","metadata":{"label":"dom/WriteHtml","x":684,"y":288,"width":72,"height":72}},"dom/GetElement_xvz54":{"component":"dom/GetElement","metadata":{"label":"dom/GetElement","x":252,"y":288,"width":72,"height":72}},"interaction/ListenMouse_1l373":{"component":"interaction/ListenMouse","metadata":{"label":"interaction/ListenMouse","x":432,"y":180,"width":72,"height":72}},"core/Kick_ey1nh":{"component":"core/Kick","metadata":{"label":"core/Kick","x":576,"y":180,"width":72,"height":72}}},"connections":[{"src":{"process":"dom/GetElement_xvz54","port":"element"},"tgt":{"process":"dom/WriteHtml_fpz6j","port":"container"},"metadata":{}},{"src":{"process":"dom/GetElement_7amk2","port":"element"},"tgt":{"process":"interaction/ListenMouse_1l373","port":"element"},"metadata":{"route":0}},{"src":{"process":"dom/GetElement_7amk2","port":"error"},"tgt":{"process":"core/Output_cg49","port":"in"},"metadata":{"route":1}},{"src":{"process":"dom/GetElement_xvz54","port":"error"},"tgt":{"process":"core/Output_cg49","port":"in"},"metadata":{"route":1}},{"src":{"process":"interaction/ListenMouse_1l373","port":"click"},"tgt":{"process":"core/Kick_ey1nh","port":"in"},"metadata":{}},{"src":{"process":"core/Kick_ey1nh","port":"out"},"tgt":{"process":"dom/WriteHtml_fpz6j","port":"html"},"metadata":{}},{"data":"#button","tgt":{"process":"dom/GetElement_7amk2","port":"selector"}},{"data":"#message","tgt":{"process":"dom/GetElement_xvz54","port":"selector"}},{"data":"Hello World!","tgt":{"process":"core/Kick_ey1nh","port":"data"}}]}');
+module.exports = JSON.parse('{"properties":{"name":"main","environment":{"type":"noflo-browser","content":"<p id=\\"output\\">Default</p>\\n<button id=\\"button1\\">Write ello</button>\\n<button id=\\"button2\\">Start timer</button>"},"icon":""},"inports":{},"outports":{},"groups":[{"name":"button","nodes":["core/Kick_4kjo"],"metadata":{"description":""}}],"processes":{"GetOutput":{"component":"dom/GetElement","metadata":{"label":"GetOutput","x":684,"y":144,"width":72,"height":72}},"dom/WriteHtml_u5l6e":{"component":"dom/WriteHtml","metadata":{"label":"dom/WriteHtml","x":828,"y":180,"width":72,"height":72}},"core/Output_uf48d":{"component":"core/Output","metadata":{"label":"core/Output","x":468,"y":180,"width":72,"height":72}},"core/Kick_4kjo":{"component":"core/Kick","metadata":{"label":"core/Kick","x":684,"y":288,"width":72,"height":72}},"core/Drop_wnzzy":{"component":"core/Drop","metadata":{"label":"core/Drop","x":864,"y":-36,"width":72,"height":72}},"packets/Counter_twp65":{"component":"packets/Counter","metadata":{"label":"packets/Counter","x":684,"y":0,"width":72,"height":72}},"core/RunInterval_x0b59":{"component":"core/RunInterval","metadata":{"label":"core/RunInterval","x":540,"y":0,"width":72,"height":72}},"cbase-workshop/ListenClick":{"component":"cbase-workshop/ListenClick","metadata":{"label":"ListenClick","x":360,"y":0,"width":72,"height":72}},"cbase-workshop/ListenClick_fjvd7":{"component":"cbase-workshop/ListenClick","metadata":{"label":"cbase-workshop/ListenClick","x":540,"y":288,"width":72,"height":72}}},"connections":[{"src":{"process":"GetOutput","port":"error"},"tgt":{"process":"core/Output_uf48d","port":"in"},"metadata":{"route":1}},{"src":{"process":"core/Kick_4kjo","port":"out"},"tgt":{"process":"dom/WriteHtml_u5l6e","port":"html"},"metadata":{}},{"src":{"process":"packets/Counter_twp65","port":"count"},"tgt":{"process":"dom/WriteHtml_u5l6e","port":"html"},"metadata":{}},{"src":{"process":"packets/Counter_twp65","port":"out"},"tgt":{"process":"core/Drop_wnzzy","port":"in"},"metadata":{}},{"src":{"process":"GetOutput","port":"element"},"tgt":{"process":"dom/WriteHtml_u5l6e","port":"container"},"metadata":{"route":null}},{"src":{"process":"core/RunInterval_x0b59","port":"out"},"tgt":{"process":"packets/Counter_twp65","port":"in"},"metadata":{}},{"src":{"process":"cbase-workshop/ListenClick","port":"getelement_error"},"tgt":{"process":"core/Output_uf48d","port":"in"},"metadata":{"route":1}},{"src":{"process":"cbase-workshop/ListenClick","port":"listenmouse_click"},"tgt":{"process":"core/RunInterval_x0b59","port":"stop"},"metadata":{"route":null}},{"src":{"process":"cbase-workshop/ListenClick_fjvd7","port":"listenmouse_click"},"tgt":{"process":"core/Kick_4kjo","port":"in"},"metadata":{}},{"data":"#output","tgt":{"process":"GetOutput","port":"selector"}},{"data":"Hello World","tgt":{"process":"core/Kick_4kjo","port":"data"}},{"data":true,"tgt":{"process":"packets/Counter_twp65","port":"immediate"}},{"data":1000,"tgt":{"process":"core/RunInterval_x0b59","port":"interval"}},{"data":"#button1","tgt":{"process":"cbase-workshop/ListenClick","port":"selector"}},{"data":"#button2","tgt":{"process":"cbase-workshop/ListenClick_fjvd7","port":"selector"}}]}');
 });
 require.register("noflo-browser-app/component.json", function(exports, require, module){
-module.exports = JSON.parse('{"name":"noflo-browser-app","description":"The best project ever.","author":"Jon Nordby <jononor@gmail.com>","repo":"noflo/noflo-browser-app","version":"0.1.0","keywords":[],"dependencies":{"noflo/noflo":"*","noflo/noflo-dom":"*","noflo/noflo-core":"*","noflo/noflo-interaction":"*","noflo/noflo-runtime-webrtc":"*","noflo/noflo-runtime":"*"},"remotes":["https://raw.githubusercontent.com"],"scripts":["index.js","components/DoSomething.js","graphs/main.json"],"json":["graphs/main.json","component.json"],"noflo":{"graphs":{"main":"graphs/main.json"},"components":{"DoSomething":"components/DoSomething.js"},"runtimes":[{"id":"2ef763ff-1f28-49b8-b58f-5c6a5c74af2d","label":"local imgflo","description":"Image processing runtime","type":"imgflo","protocol":"websocket","address":"ws://localhost:3555","secret":"no-secret"}]}}');
+module.exports = JSON.parse('{"name":"noflo-browser-app","description":"The best project ever.","author":"Jon Nordby <jononor@gmail.com>","repo":"noflo/noflo-browser-app","version":"0.1.0","keywords":[],"dependencies":{"noflo/noflo":"*","noflo/noflo-dom":"*","noflo/noflo-core":"*","noflo/noflo-interaction":"*","noflo/noflo-runtime-webrtc":"*","noflo/noflo-runtime":"*"},"remotes":["https://raw.githubusercontent.com"],"scripts":["index.js","components/DoSomething.js","graphs/main.json","graphs/ListenClick.json"],"json":["graphs/main.json","component.json","graphs/ListenClick.json"],"noflo":{"graphs":{"ListenClick":"graphs/ListenClick.json","main":"graphs/main.json"},"components":{"DoSomething":"components/DoSomething.js"},"runtimes":[{"id":"2ef763ff-1f28-49b8-b58f-5c6a5c74af2d","label":"local imgflo","description":"Image processing runtime","type":"imgflo","protocol":"websocket","address":"ws://localhost:3555","secret":"no-secret"}]}}');
+});
+require.register("noflo-browser-app/graphs/ListenClick.json", function(exports, require, module){
+module.exports = JSON.parse('{"properties":{"name":"ListenClick","environment":{"type":"all"}},"inports":{"selector":{"process":"dom/GetElement_ufb3a","port":"selector","metadata":{"x":-108,"y":108,"width":72,"height":72}}},"outports":{"getelement_error":{"process":"dom/GetElement_ufb3a","port":"error","metadata":{"x":324,"y":36,"width":72,"height":72}},"listenmouse_click":{"process":"interaction/ListenMouse_g52t0","port":"click","metadata":{"x":324,"y":144,"width":72,"height":72}}},"groups":[],"processes":{"dom/GetElement_ufb3a":{"component":"dom/GetElement","metadata":{"label":"dom/GetElement","x":36,"y":108,"width":72,"height":72}},"interaction/ListenMouse_g52t0":{"component":"interaction/ListenMouse","metadata":{"label":"interaction/ListenMouse","x":180,"y":180,"width":72,"height":72}}},"connections":[{"src":{"process":"dom/GetElement_ufb3a","port":"element"},"tgt":{"process":"interaction/ListenMouse_g52t0","port":"element"},"metadata":{"route":null}}]}');
 });
 require.register("noflo-browser-app/components/DoSomething.js", function(exports, require, module){
 var noflo;
@@ -45396,8 +45629,8 @@ module.exports = {
   "name": "microflo",
   "description": "MicroFlo host functionality for browser",
   "author": "Jon Nordby <jononor@gmail.com>",
-  "repo": "jonnor/microflo",
-  "version": "0.3.13",
+  "repo": "microflo/microflo",
+  "version": "0.3.14",
   "keywords": [
     "FBP"
   ],
@@ -45421,6 +45654,7 @@ module.exports = {
     "build/emscripten/microflo-runtime.js",
     "lib/devicecommunication.js",
     "lib/flash.js",
+    "lib/definition.js",
     "lib/runtime.js"
   ],
   "json": [
@@ -46487,6 +46721,7 @@ require.alias("jonnor-microflo/lib/util.js", "noflo-noflo-runtime/deps/microflo/
 require.alias("jonnor-microflo/build/emscripten/microflo-runtime.js", "noflo-noflo-runtime/deps/microflo/build/emscripten/microflo-runtime.js");
 require.alias("jonnor-microflo/lib/devicecommunication.js", "noflo-noflo-runtime/deps/microflo/lib/devicecommunication.js");
 require.alias("jonnor-microflo/lib/flash.js", "noflo-noflo-runtime/deps/microflo/lib/flash.js");
+require.alias("jonnor-microflo/lib/definition.js", "noflo-noflo-runtime/deps/microflo/lib/definition.js");
 require.alias("jonnor-microflo/lib/runtime.js", "noflo-noflo-runtime/deps/microflo/lib/runtime.js");
 require.alias("jonnor-microflo/lib/microflo.js", "noflo-noflo-runtime/deps/microflo/index.js");
 require.alias("component-emitter/index.js", "jonnor-microflo/deps/emitter/index.js");
