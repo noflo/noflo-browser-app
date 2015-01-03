@@ -1,5 +1,5 @@
 {
-  "name": "noflo-browser-app",
+  "name": "cbase-workshop",
   "description": "The best project ever.",
   "author": "Jon Nordby <jononor@gmail.com>",
   "repo": "noflo/noflo-browser-app",
@@ -10,6 +10,7 @@
     "noflo/noflo-dom": "*",
     "noflo/noflo-core": "*",
     "noflo/noflo-interaction": "*",
+    "noflo/noflo-packets": "*",
     "noflo/noflo-runtime-webrtc": "*"
   },
   "remotes": [
