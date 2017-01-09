@@ -10,7 +10,6 @@ module.exports = ->
     noflo_manifest:
       update:
         files:
-          'component.json': ['graphs/*', 'components/*']
           'package.json': ['graphs/*', 'components/*']
 
     # CoffeeScript compilation of tests
@@ -30,7 +29,7 @@ module.exports = ->
         options:
           debug: true
         files:
-          "browser/<%=pkg.name%>.js": ['component.json']
+          "browser/<%=pkg.name%>.js": ['package.json']
 
     # JavaScript minification for the browser
     uglify:
@@ -46,7 +45,7 @@ module.exports = ->
       tasks: ['test']
 
     # BDD tests on Node.js
-    cafemocha:
+    mochaTest:
       nodejs:
         src: ['spec/*.coffee']
         options:
@@ -94,7 +93,7 @@ module.exports = ->
 
   # Grunt plugins used for testing
   @loadNpmTasks 'grunt-contrib-watch'
-  @loadNpmTasks 'grunt-cafe-mocha'
+  @loadNpmTasks 'grunt-mocha-test'
   @loadNpmTasks 'grunt-mocha-phantomjs'
   @loadNpmTasks 'grunt-coffeelint'
 
@@ -114,7 +113,7 @@ module.exports = ->
     @task.run 'coffee'
     @task.run 'noflo_manifest'
     if target is 'all' or target is 'nodejs'
-      @task.run 'cafemocha'
+      @task.run 'mochaTest'
     if target is 'all' or target is 'browser'
       @task.run 'noflo_browser'
       @task.run 'noflo_browser_mocha'
