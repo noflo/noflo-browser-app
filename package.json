@@ -23,7 +23,7 @@
     "grunt-cafe-mocha": "~0.1.12",
     "grunt-coffeelint": "~0.0.10",
     "grunt-contrib-coffee": "~1.0.0",
-    "grunt-contrib-uglify": "~1.0.1",
+    "grunt-contrib-uglify": "~2.0.0",
     "grunt-contrib-watch": "~1.0.0",
     "grunt-gh-pages": "^2.0.0",
     "grunt-mocha-phantomjs": "~3.0.0",
