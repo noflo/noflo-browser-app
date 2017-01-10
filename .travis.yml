@@ -3,8 +3,13 @@ node_js:
 - '6'
 before_script:
 - npm install -g grunt-cli
-after_success:
-- grunt gh-pages
+deploy:
+  provider: script
+  skip_cleanup: true
+  script: grunt gh-pages
+  on:
+    tags: true
+    repo: noflo/noflo-browser-app
 env:
   global:
-  - secure: QDAFlaHxMFfpDzT2rhRnUHlKsUk+Bs1fRseeLbxGSZvkCSGUiIDZHvRnfUQ+lUVihHOgYVSxMghkv624FJXWBebApubSYyCyZ269Zs1pKbzpkeUc1+lS9NQ6b0mgEC1VZBtmM3BYYr+IGeP1akERYA98JPcZEyq8af2gCTW4Ufo=
+    secure: asjCE+KpyVtXLMiKStXk2EU43CltRR7YlJhRHnTPxqmvXboE0FLy0aCD7bVmqRbhxwkIGWXC8IFDRuu0SNsi8e1FFlQZY9OkkiGMnIfZ/8W2LFxQNVtHEg2DbThXhpKYIEphuZBTtZXwZyh+t7Hwmuqu5CPRMnGBVp8FzDkCKp0=

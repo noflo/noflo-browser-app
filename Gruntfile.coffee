@@ -77,7 +77,7 @@ module.exports = ->
       options:
         base: 'browser'
         clone: 'gh-pages'
-        message: 'Updating'
+        message: "Release #{pkg.name} #{process.env.TRAVIS_TAG}"
         repo: repo
         user:
           name: 'NoFlo bot'
