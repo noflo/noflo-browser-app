@@ -3,18 +3,36 @@
   <head>
     <meta charset="utf-8">
     <title>main</title>
-    <script src="http://cdn.rawgit.com/rtc-io/rtc/v3.1.1/dist/rtc.js"></script>
+    <script src="https://app.flowhub.io/node_modules/rtc/dist/rtc.js"></script>
     <script src="noflo-browser-app.js"></script>
-    <script src="./noflo-noflo-runtime-iframe/runtime/network.js"></script>
+    <style>
+    #flowhub_debug_url.nodebug {
+      display: none;
+    }
+    #flowhub_debug_url.debug {
+      display: block;
+      position: fixed;
+      z-index: 999;
+      right: 36px;
+      top: 36px;
+      background-color: hsla(210, 98%, 46%, .8) !important;
+      border-color: hsl(210, 98%, 46%) !important;
+      color: white !important;
+      text-decoration: none;
+      padding: 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: sans-serif;
+    }
+    </style>
+    
   </head>
   <body>
-    <a id='flowhub_debug_url'>Debug in Flowhub</a>
+    <a id='flowhub_debug_url' target="_blank" class='nodebug'>Debug in Flowhub</a>
     <button id='button'>Go!</button>
 <p id='message'></p>
     <script>
       var noflo = require('noflo');
-      var webrtcRuntime = require('noflo-runtime-webrtc');
-      var iframeRuntime = window.NofloIframeRuntime; //require('noflo-runtime-iframe');
 
       function getParameterByName(name) {
         name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
@@ -23,51 +41,67 @@
         return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
       }
 
-      noflo.graph.loadJSON(require('noflo-browser-app/graphs/main.json'), function (graph) {
-        graph.baseDir = '/noflo-browser-app';
-
-        var queryProtocol = getParameterByName('fbp_protocol');
-        var queryAddress = getParameterByName('fbp_address');
-        var queryNoLoad = getParameterByName('fbp_noload');
-
-        var runtimeOptions = {
-            baseDir: graph.baseDir
-        };
-        if (queryNoLoad.toLowerCase() !== 'true') {
-            runtimeOptions.defaultGraph = graph;
-        };
-        if (!queryProtocol) {
-            queryProtocol = 'webrtc';
+      var noflo = require('noflo');
+      var loader = new noflo.ComponentLoader('browser-app');
+      loader.load('browser-app/main', function (err, instance) {
+        if (err) {
+          throw err;
         }
+        instance.on('ready', function () {
+          var graph = instance.network.graph;
 
-        var rt = null;
-        if (queryProtocol == 'webrtc') {
-          if (queryAddress) {
-            // ID to use specified from outside, normally by Flowhub IDE
-            rt = webrtcRuntime(queryAddress, runtimeOptions, true);
-          } else {
-            // Generate new ID
-            rt = webrtcRuntime(null, runtimeOptions, true);
-            rt.signaller = 'https://api.flowhub.io';
+          var queryProtocol = getParameterByName('fbp_protocol');
+          var queryAddress = getParameterByName('fbp_address');
+          var queryNoLoad = getParameterByName('fbp_noload');
+
+          var runtimeOptions = {
+            baseDir: 'browser-app',
+            defaultPermissions: [
+              'protocol:graph',
+              'protocol:component',
+              'protocol:network',
+              'protocol:runtime',
+              'component:getsource'
+            ]
+          };
+          if (queryNoLoad.toLowerCase() !== 'true') {
+            runtimeOptions.defaultGraph = graph;
+          };
+          if (!queryProtocol) {
+              queryProtocol = 'webrtc';
           }
-          var ide = 'https://app.flowhub.io';
-          var debugUrl = ide+'#runtime/endpoint?'+encodeURIComponent('protocol=webrtc&address='+rt.signaller+'#'+rt.id);
-          console.log('Debug URL', debugUrl);
-          document.getElementById('flowhub_debug_url').href = debugUrl;
-        } else if (queryProtocol == 'iframe') {
-          if (iframeRuntime) {
+
+          var rt = null;
+          if (queryProtocol == 'webrtc') {
+            var webrtcRuntime = require('noflo-runtime-webrtc');
+            if (queryAddress) {
+              // ID to use specified from outside, normally by Flowhub IDE
+              rt = webrtcRuntime(queryAddress, runtimeOptions, true);
+            } else {
+              // Generate new ID
+              rt = webrtcRuntime(null, runtimeOptions, true);
+              rt.signaller = 'https://api.flowhub.io';
+            }
+            var ide = 'https://app.flowhub.io';
+            var debugUrl = ide+'#runtime/endpoint?'+encodeURIComponent('protocol=webrtc&address='+rt.signaller+'#'+rt.id);
+            var debugButton = document.getElementById('flowhub_debug_url');
+            console.log('Debug URL', debugUrl);
+            debugButton.className = "debug";
+            debugButton.href = debugUrl;
+          } else if (queryProtocol == 'iframe') {
+            var iframeRuntime = require('noflo-runtime-iframe');
             rt = iframeRuntime(runtimeOptions);
           }
-        }
 
-        if (rt) {
-          rt.network.on('addnetwork', function () {
-            console.log('main is running!');
-          });
-          rt.start();
-        } else {
-          console.log('Warning: unable to create FBP runtime');
-        }
+          if (rt) {
+            rt.network.on('addnetwork', function () {
+              console.log('main is running!');
+            });
+            rt.start();
+          } else {
+            console.log('Warning: unable to create FBP runtime');
+          }
+        });
       });
     </script>
   </body>
