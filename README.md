@@ -8,6 +8,7 @@ Usage
 * Fork this project on GitHub
 * Import in Flowhub
 * Make changes, syncronize in Flowhub
+* Add any [NoFlo modules](https://npmjs.com/browse/keyword/noflo) you need to `package.json`
 
 Setup autodeploy
 --------------
