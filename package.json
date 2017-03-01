@@ -38,7 +38,7 @@
     "json-loader": "^0.5.4",
     "mocha": "^3.2.0",
     "noflo-runtime-iframe": "^0.7.3",
-    "noflo-runtime-webrtc": "^0.7.3"
+    "noflo-runtime-webrtc": "^0.8.0"
   },
   "keywords": [
     "noflo"
