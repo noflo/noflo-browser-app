@@ -15,7 +15,7 @@
     "test": "grunt test"
   },
   "dependencies": {
-    "noflo": "~0.7.9",
+    "noflo": "~0.8.0",
     "noflo-core": "^0.2.3",
     "noflo-dom": "^0.1.1",
     "noflo-interaction": "^0.1.1"
