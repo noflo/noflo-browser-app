@@ -15,8 +15,8 @@
     "test": "grunt test"
   },
   "dependencies": {
-    "noflo": "~0.7.9",
-    "noflo-core": "^0.2.3",
+    "noflo": "~0.8.0",
+    "noflo-core": "^0.3.1",
     "noflo-dom": "^0.1.1",
     "noflo-interaction": "^0.1.1"
   },
@@ -37,8 +37,8 @@
     "grunt-noflo-manifest": "^0.1.12",
     "json-loader": "^0.5.4",
     "mocha": "^3.2.0",
-    "noflo-runtime-iframe": "^0.7.3",
-    "noflo-runtime-webrtc": "^0.7.3"
+    "noflo-runtime-iframe": "^0.8.0",
+    "noflo-runtime-webrtc": "^0.8.0"
   },
   "keywords": [
     "noflo"
