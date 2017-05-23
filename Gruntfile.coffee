@@ -35,6 +35,7 @@ module.exports = ->
     uglify:
       options:
         report: 'min'
+        sourceMap: true
       noflo:
         files:
           "./browser/<%=pkg.name%>.min.js": ["./browser/<%=pkg.name%>.js"]
@@ -55,7 +56,7 @@ module.exports = ->
     noflo_browser_mocha:
       all:
         options:
-          scripts: ["../browser/<%=pkg.name%>.js"]
+          scripts: ["../browser/<%=pkg.name%>.min.js"]
         files:
           'spec/runner.html': ['spec/*.js']
 
@@ -110,12 +111,10 @@ module.exports = ->
 
   @registerTask 'test', 'Build NoFlo and run automated tests', (target = 'all') =>
     @task.run 'coffeelint'
-    @task.run 'coffee'
-    @task.run 'noflo_manifest'
+    @task.run 'build'
     if target is 'all' or target is 'nodejs'
       @task.run 'mochaTest'
     if target is 'all' or target is 'browser'
-      @task.run 'noflo_browser'
       @task.run 'noflo_browser_mocha'
       @task.run 'mocha_phantomjs'
 
