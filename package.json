@@ -36,8 +36,7 @@
     "grunt-noflo-browser": "^1.3.0",
     "json-loader": "^0.5.4",
     "mocha": "^3.2.0",
-    "noflo-runtime-iframe": "^0.8.0",
-    "noflo-runtime-webrtc": "^0.8.0"
+    "noflo-runtime-postmessage": "^0.8.2"
   },
   "keywords": [
     "noflo"
