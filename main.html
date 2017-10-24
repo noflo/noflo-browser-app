@@ -3,7 +3,6 @@
   <head>
     <meta charset="utf-8">
     <title>main</title>
-    <script src="https://app.flowhub.io/node_modules/rtc/dist/rtc.js"></script>
     <script src="noflo-browser-app.js"></script>
     <style>
     #flowhub_debug_url.nodebug {
@@ -51,7 +50,6 @@
           var graph = instance.network.graph;
 
           var queryProtocol = getParameterByName('fbp_protocol');
-          var queryAddress = getParameterByName('fbp_address');
           var queryNoLoad = getParameterByName('fbp_noload');
 
           var runtimeOptions = {
@@ -61,36 +59,28 @@
               'protocol:component',
               'protocol:network',
               'protocol:runtime',
-              'component:getsource'
+              'component:getsource',
+              'component:setsource'
             ]
           };
           if (queryNoLoad.toLowerCase() !== 'true') {
             runtimeOptions.defaultGraph = graph;
           };
           if (!queryProtocol) {
-              queryProtocol = 'webrtc';
+            queryProtocol = 'opener';
           }
 
           var rt = null;
-          if (queryProtocol == 'webrtc') {
-            var webrtcRuntime = require('noflo-runtime-webrtc');
-            if (queryAddress) {
-              // ID to use specified from outside, normally by Flowhub IDE
-              rt = webrtcRuntime(queryAddress, runtimeOptions, true);
-            } else {
-              // Generate new ID
-              rt = webrtcRuntime(null, runtimeOptions, true);
-              rt.signaller = 'https://api.flowhub.io';
-            }
+          var postMessageRuntime = require('noflo-runtime-postmessage');
+          if (queryProtocol == 'opener') {
             var ide = 'https://app.flowhub.io';
-            var debugUrl = ide+'#runtime/endpoint?'+encodeURIComponent('protocol=webrtc&address='+rt.signaller+'#'+rt.id);
+            var debugUrl = ide+'#runtime/endpoint?'+encodeURIComponent('protocol=opener&address='+window.location.href);
             var debugButton = document.getElementById('flowhub_debug_url');
-            console.log('Debug URL', debugUrl);
             debugButton.className = "debug";
             debugButton.href = debugUrl;
+            rt = postMessageRuntime.opener(runtimeOptions, debugButton);
           } else if (queryProtocol == 'iframe') {
-            var iframeRuntime = require('noflo-runtime-iframe');
-            rt = iframeRuntime(runtimeOptions);
+            rt = postMessageRuntime.iframe(runtimeOptions);
           }
 
           if (rt) {
