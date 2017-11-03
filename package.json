@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "noflo": "^1.0.0",
-    "noflo-core": "^0.4.0",
+    "noflo-core": "^0.5.0",
     "noflo-dom": "^0.2.0",
     "noflo-interaction": "^0.2.6"
   },
