@@ -32,7 +32,7 @@
     "grunt-mocha-test": "^0.13.2",
     "grunt-noflo-browser": "^1.5.0",
     "mocha": "^4.0.0",
-    "noflo-runtime-postmessage": "^0.8.4"
+    "noflo-runtime-postmessage": "^0.9.0"
   },
   "keywords": [
     "noflo"
