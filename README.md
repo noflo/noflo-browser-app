@@ -14,7 +14,7 @@ Setup autodeploy
 --------------
 To enable autodeploy
 
-* Change repo name in Gruntfile.coffee
+* Change repo name in Gruntfile.js
 * create a [personal github access token](https://help.github.com/articles/creating-an-access-token-for-command-line-use/)
 * Enable [Travis CI](https://travis-ci.org) for your fork
 * Change to use your own `GH_TOKEN` with `travis encrypt add GH_TOKEN=xyz123 --add`
