@@ -1,4 +1,4 @@
-topic: "DoSomething"
+topic: "browser-app/DoSomething"
 cases:
 -
   name: 'sending a boolean'

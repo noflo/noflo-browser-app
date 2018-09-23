@@ -1,9 +1,8 @@
 /node_modules/
 /browser/
 /components/*/
-/spec/*.js
-/spec/*.xml
-/spec/runner.html
 flowhub.json
+fbp.json
+package-lock.json
 *~
 gh-pages/

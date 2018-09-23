@@ -12,7 +12,8 @@
   },
   "license": "MIT",
   "scripts": {
-    "test": "grunt test"
+    "pretest": "eslint components/*.js && grunt build",
+    "test": "fbp-spec --address ws://localhost:3569 --command \"noflo-runtime-headless -f browser/noflo-browser-app.js\" spec/*.yaml"
   },
   "dependencies": {
     "noflo": "^1.0.0",
@@ -21,17 +22,15 @@
     "noflo-interaction": "^0.3.0"
   },
   "devDependencies": {
-    "chai": "^4.0.0",
-    "grunt": "^1.0.1",
-    "grunt-coffeelint": "^0.0.16",
-    "grunt-contrib-coffee": "^2.0.0",
-    "grunt-contrib-uglify": "^3.0.1",
+    "eslint": "^5.6.0",
+    "eslint-config-airbnb-base": "^13.1.0",
+    "eslint-plugin-import": "^2.14.0",
+    "fbp-spec": "^0.6.6",
+    "grunt": "^1.0.3",
     "grunt-contrib-watch": "^1.0.0",
     "grunt-gh-pages": "^2.0.0",
-    "grunt-mocha-phantomjs": "^4.0.0",
-    "grunt-mocha-test": "^0.13.2",
     "grunt-noflo-browser": "^1.5.0",
-    "mocha": "^5.0.0",
+    "noflo-runtime-headless": "^0.1.0",
     "noflo-runtime-postmessage": "^0.10.0"
   },
   "keywords": [
