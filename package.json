@@ -28,7 +28,7 @@
     "fbp-spec": "^0.6.6",
     "grunt": "^1.0.3",
     "grunt-contrib-watch": "^1.0.0",
-    "grunt-gh-pages": "^2.0.0",
+    "grunt-gh-pages": "^3.0.0",
     "grunt-noflo-browser": "^1.5.0",
     "noflo-runtime-headless": "^0.1.0",
     "noflo-runtime-postmessage": "^0.10.0"
