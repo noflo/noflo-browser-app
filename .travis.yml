@@ -4,7 +4,7 @@ node_js:
 deploy:
   provider: pages
   skip_cleanup: true
-  local-dir: browser
+  local-dir: dist
   keep-history: true
   skip_cleanup: true
   committer-from-gh: true
