@@ -10,4 +10,3 @@ deploy:
   committer-from-gh: true
   on:
     tags: true
-    repo: noflo/noflo-browser-app
