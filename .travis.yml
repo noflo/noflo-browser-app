@@ -4,6 +4,7 @@ node_js:
 deploy:
   provider: pages
   skip_cleanup: true
+  github-token: $GITHUB_TOKEN  # Set in the settings page of your repository, as a secure variable
   local-dir: dist
   keep-history: true
   skip_cleanup: true
