@@ -1,0 +1,22 @@
+#flowhub_debug_url.nodebug {
+  display: none;
+}
+#flowhub_debug_url.debug {
+  display: block;
+  position: fixed;
+  z-index: 999;
+  width: 20em;
+  height: 1.5em;
+  right: -6.5em;
+  top: 3em;
+  text-align: center;
+  background-color: hsla(210, 98%, 46%, .8) !important;
+  border-color: hsl(210, 98%, 46%) !important;
+  color: white !important;
+  text-decoration: none;
+  padding: 1em;
+  box-sizing: content-box;
+  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  transform: rotate(45deg);
+}
