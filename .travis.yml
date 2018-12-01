@@ -1,15 +1,13 @@
 language: node_js
 node_js:
 - 'lts/*'
-before_script:
-- npm install -g grunt-cli
 deploy:
-  provider: script
+  provider: pages
   skip_cleanup: true
-  script: grunt gh-pages
+  local-dir: browser
+  keep-history: true
+  skip_cleanup: true
+  committer-from-gh: true
   on:
     tags: true
     repo: noflo/noflo-browser-app
-env:
-  global:
-    secure: asjCE+KpyVtXLMiKStXk2EU43CltRR7YlJhRHnTPxqmvXboE0FLy0aCD7bVmqRbhxwkIGWXC8IFDRuu0SNsi8e1FFlQZY9OkkiGMnIfZ/8W2LFxQNVtHEg2DbThXhpKYIEphuZBTtZXwZyh+t7Hwmuqu5CPRMnGBVp8FzDkCKp0=
