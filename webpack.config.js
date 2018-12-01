@@ -88,4 +88,10 @@ module.exports = {
     child_process: 'empty',
     fs: 'empty',
   },
+  devServer: {
+    contentBase: path.join(__dirname, 'dist'),
+    host: process.env.HOST || 'localhost',
+    port: 8080,
+    inline: true,
+  },
 };

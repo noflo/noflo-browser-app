@@ -15,9 +15,10 @@
     "build": "webpack",
     "lint": "eslint *.js components/*.js",
     "lint-fix": "eslint --fix *.js components/*.js",
+    "postinstall": "noflo-cache-preheat",
     "pretest": "npm run lint && npm run build",
-    "test": "fbp-spec --address ws://localhost:3569 --command \"noflo-runtime-headless -f dist/test.js\" spec/*.yaml",
-    "postinstall": "noflo-cache-preheat"
+    "start": "webpack-dev-server",
+    "test": "fbp-spec --address ws://localhost:3569 --command \"noflo-runtime-headless -f dist/test.js\" spec/*.yaml"
   },
   "dependencies": {
     "noflo": "^1.0.0",
@@ -39,7 +40,8 @@
     "noflo-component-loader": "^0.3.2",
     "noflo-runtime-headless": "^0.1.0",
     "webpack": "^4.26.1",
-    "webpack-cli": "^3.1.2"
+    "webpack-cli": "^3.1.2",
+    "webpack-dev-server": "^3.1.10"
   },
   "keywords": [
     "noflo"
