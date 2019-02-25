@@ -1,6 +1,7 @@
 const runtime = require('./runtime');
 const pkg = require('./package.json');
 const graph = require('./graphs/main.json');
+const uuid = require('uuid-by-string');
 
 function main() {
   return runtime(graph, {
@@ -9,7 +10,7 @@ function main() {
       label: pkg.name,
       namespace: pkg.name,
       repository: pkg.repository ? pkg.repository.url : null,
-      // TODO: Provide UUID for this application instance
+      id: uuid(window.location.href), // NOTE: you can also set a fixed UUID here to represent app
     },
     debugButton: document.getElementById('flowhub_debug_url'),
   });
