@@ -16,11 +16,15 @@ function getParameterByName(name) {
   return params.get(name);
 }
 
-function getIdeUrl(ide = 'https://app.flowhub.io') {
-  const query = qs.stringify({
+function getIdeUrl(options, ide = 'https://app.flowhub.io') {
+  const params = {
     protocol: 'opener',
     address: window.location.href,
-  });
+  };
+  if (options.id) {
+    params.id = options.id;
+  }
+  const query = qs.stringify(params);
   return `${ide}#runtime/endpoint?${query}`;
 }
 
@@ -55,7 +59,7 @@ function startRuntime(graph, options = {}) {
         }
         const button = options.debugButton;
         button.classList.replace('nodebug', 'debug');
-        button.href = getIdeUrl(options.ide);
+        button.href = getIdeUrl(runtimeOptions, options.ide);
         resolve(postMessageRuntime.opener(runtimeOptions, button));
         return;
       }
