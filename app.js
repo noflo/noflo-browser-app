@@ -1,7 +1,7 @@
+const uuid = require('uuid-by-string');
 const runtime = require('./runtime');
 const pkg = require('./package.json');
 const graph = require('./graphs/main.json');
-const uuid = require('uuid-by-string');
 
 function main() {
   return runtime(graph, {
