@@ -9,6 +9,7 @@ function main() {
       label: pkg.name,
       namespace: pkg.name,
       repository: pkg.repository ? pkg.repository.url : null,
+      // TODO: Provide UUID for this application instance
     },
     debugButton: document.getElementById('flowhub_debug_url'),
   });
