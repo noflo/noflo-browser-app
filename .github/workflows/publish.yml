@@ -1,0 +1,25 @@
+name: Publish Node.js Package
+
+on:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2.3.2
+      - uses: actions/setup-node@v2.1.1
+        with:
+          node-version: 12
+      - run: npm install
+      - run: npm test
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./dist
