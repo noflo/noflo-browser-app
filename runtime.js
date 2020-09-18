@@ -95,5 +95,5 @@ function startNetwork(runtime, graph, options) {
 }
 
 module.exports = (graph, options) => loadGraph(graph)
-  .then(graphInstance => startRuntime(graphInstance, options)
-    .then(runtime => startNetwork(runtime, graphInstance, options)));
+  .then((graphInstance) => startRuntime(graphInstance, options)
+    .then((runtime) => startNetwork(runtime, graphInstance, options)));
