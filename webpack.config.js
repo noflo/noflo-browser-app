@@ -70,16 +70,18 @@ module.exports = {
     ],
   },
   plugins: [
-    new CopyWebpackPlugin([
-      {
-        from: 'assets/*.html',
-        flatten: true,
-      },
-      {
-        from: 'assets/*.css',
-        flatten: true,
-      },
-    ]),
+    new CopyWebpackPlugin({
+      patterns: [
+        {
+          from: 'assets/*.html',
+          flatten: true,
+        },
+        {
+          from: 'assets/*.css',
+          flatten: true,
+        },
+      ],
+    }),
   ],
   resolve: {
     extensions: ['.coffee', '.js'],
