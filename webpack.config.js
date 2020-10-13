@@ -1,5 +1,5 @@
 const path = require('path');
-
+const webpack = require('webpack');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 module.exports = {
@@ -82,13 +82,20 @@ module.exports = {
         },
       ],
     }),
+    new webpack.ProvidePlugin({
+      process: ['process'],
+    }),
   ],
   resolve: {
     extensions: ['.coffee', '.js'],
-  },
-  node: {
-    child_process: 'empty',
-    fs: 'empty',
+    fallback: {
+      assert: false,
+      constants: false,
+      fs: false,
+      os: false,
+      path: require.resolve('path-browserify'),
+      util: require.resolve('util/'),
+    },
   },
   devServer: {
     contentBase: path.join(__dirname, 'dist'),
