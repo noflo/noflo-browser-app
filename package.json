@@ -18,7 +18,7 @@
     "postinstall": "noflo-cache-preheat",
     "pretest": "npm run lint && npm run build",
     "start": "webpack-dev-server",
-    "test": "fbp-spec --address ws://localhost:3569 --command \"noflo-runtime-headless -f dist/test.js\" spec/*.yaml"
+    "test": "fbp-spec --address ws://localhost:3569 --trace --command \"noflo-runtime-headless -f dist/test.js\" spec/*.yaml"
   },
   "dependencies": {
     "noflo": "^1.0.0",
