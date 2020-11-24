@@ -38,7 +38,7 @@
     "eslint-config-airbnb-base": "^14.2.0",
     "eslint-plugin-import": "^2.14.0",
     "fbp-spec": "^0.8.0",
-    "noflo-component-loader": "^0.3.2",
+    "noflo-component-loader": "^0.4.0",
     "noflo-runtime-headless": "^0.2.0",
     "path-browserify": "^1.0.1",
     "process": "^0.11.10",
