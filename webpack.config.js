@@ -74,11 +74,11 @@ module.exports = {
       patterns: [
         {
           from: 'assets/*.html',
-          flatten: true,
+          to: 'assets/[name].html',
         },
         {
           from: 'assets/*.css',
-          flatten: true,
+          to: 'assets/[name].css',
         },
       ],
     }),
