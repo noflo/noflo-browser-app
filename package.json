@@ -34,7 +34,7 @@
     "babel-loader": "^8.0.4",
     "coffee-loader": "^2.0.0",
     "coffeescript": "^2.5.1",
-    "copy-webpack-plugin": "^8.0.0",
+    "copy-webpack-plugin": "^9.0.1",
     "eslint": "^7.9.0",
     "eslint-config-airbnb-base": "^14.2.0",
     "eslint-plugin-import": "^2.14.0",
