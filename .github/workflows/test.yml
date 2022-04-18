@@ -20,7 +20,7 @@ jobs:
       env:
         CI: true
     - name: Upload Flowtraces
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: flowtrace
         path: .flowtrace
